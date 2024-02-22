@@ -1,1 +1,3 @@
-rootProject.name = "rapids-and-rivers"
+rootProject.name = "tms-kafka-tools"
+
+include("kafka-reader", "kafka-producer", "kafka-reader-app")

@@ -1,14 +1,12 @@
 package no.nav.helse.rapids_rivers
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
-import io.ktor.server.cio.*
 import io.ktor.server.engine.*
+import io.ktor.server.netty.*
 import io.prometheus.client.CollectorRegistry
-import kotlinx.coroutines.delay
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.OffsetResetStrategy
-import org.apache.kafka.clients.producer.ProducerConfig
-import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.time.Duration
 import java.util.*
@@ -16,26 +14,12 @@ import java.util.*
 class RapidApplication internal constructor(
     private val ktor: ApplicationEngine,
     private val rapid: RapidsConnection,
-    private val appName: String? = null,
-    private val instanceId: String,
     private val onKtorStartup: () -> Unit = {},
     private val onKtorShutdown: () -> Unit = {}
-) : RapidsConnection(), RapidsConnection.MessageListener, RapidsConnection.StatusListener {
+) : RapidsConnection() {
 
     init {
         Runtime.getRuntime().addShutdownHook(Thread(::shutdownHook))
-        rapid.register(this as MessageListener)
-        rapid.register(this as StatusListener)
-
-        if (appName != null) {
-            PingPong(rapid, appName, instanceId)
-        } else {
-            log.info("not responding to pings; no app name set.")
-        }
-    }
-
-    override fun onMessage(message: String, context: MessageContext) {
-        notifyMessage(message, context)
     }
 
     override fun start() {
@@ -47,9 +31,9 @@ class RapidApplication internal constructor(
             onKtorShutdown()
             val gracePeriod = 5000L
             val forcefulShutdownTimeout = 30000L
-            log.info("shutting down ktor, waiting $gracePeriod ms for workers to exit. Forcing shutdown after $forcefulShutdownTimeout ms")
+            log.info { "shutting down ktor, waiting $gracePeriod ms for workers to exit. Forcing shutdown after $forcefulShutdownTimeout ms" }
             ktor.stop(gracePeriod, forcefulShutdownTimeout)
-            log.info("ktor shutdown complete: end of life. goodbye.")
+            log.info { "ktor shutdown complete: end of life. goodbye." }
         }
     }
 
@@ -57,68 +41,13 @@ class RapidApplication internal constructor(
         rapid.stop()
     }
 
-    override fun publish(message: String) {
-        rapid.publish(message)
-    }
-
-    override fun publish(key: String, message: String) {
-        rapid.publish(key, message)
-    }
-
-    override fun rapidName(): String {
-        return rapid.rapidName()
-    }
-
     private fun shutdownHook() {
-        log.info("received shutdown signal, stopping app")
+        log.info { "received shutdown signal, stopping app" }
         stop()
     }
 
-    override fun onStartup(rapidsConnection: RapidsConnection) {
-        publishApplicationEvent(rapidsConnection, "application_up")
-        notifyStartup()
-    }
-
-    override fun onReady(rapidsConnection: RapidsConnection) {
-        publishApplicationEvent(rapidsConnection, "application_ready")
-        notifyReady()
-    }
-
-    override fun onNotReady(rapidsConnection: RapidsConnection) {
-        publishApplicationEvent(rapidsConnection, "application_not_ready")
-        notifyNotReady()
-    }
-
-    override fun onShutdownSignal(rapidsConnection: RapidsConnection) {
-        publishApplicationEvent(rapidsConnection, "application_stop")
-        notifyShutdownSignal()
-    }
-
-    override fun onShutdown(rapidsConnection: RapidsConnection) {
-        publishApplicationEvent(rapidsConnection, "application_down")
-        notifyShutdown()
-    }
-
-    private fun publishApplicationEvent(rapidsConnection: RapidsConnection, event: String) {
-        applicationEvent(event)?.also {
-            log.info("publishing $event event for app_name=$appName, instance_id=$instanceId")
-            try {
-                rapidsConnection.publish(it)
-            } catch (err: Exception) { log.info("failed to publish event: {}", err.message, err) }
-        }
-    }
-
-    private fun applicationEvent(event: String): String? {
-        if (appName == null) return null
-        val packet = JsonMessage.newMessage(event, mapOf(
-            "app_name" to appName,
-            "instance_id" to instanceId
-        ))
-        return packet.toJson()
-    }
-
     companion object {
-        private val log = LoggerFactory.getLogger(RapidApplication::class.java)
+        private val log = KotlinLogging.logger {}
 
         fun create(env: Map<String, String>, configure: (ApplicationEngine, KafkaRapid) -> Unit = {_, _ -> }) =
             Builder(RapidApplicationConfig.fromEnv(env))
@@ -141,12 +70,7 @@ class RapidApplication internal constructor(
                 put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "${config.maxRecords}")
                 put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, "${config.maxIntervalMs}")
             },
-            producerProperties = Properties().apply {
-                put(ProducerConfig.CLIENT_ID_CONFIG, "producer-${config.instanceId}")
-            },
-            autoCommit = config.autoCommit ?: false,
-            rapidTopic = config.rapidTopic,
-            extraTopics = config.extraTopics
+            kafkaTopics = config.kafkaTopics,
         )
 
         private var ktor: ApplicationEngine? = null
@@ -160,37 +84,33 @@ class RapidApplication internal constructor(
             this.modules.add(module)
         }
 
-        fun build(configure: (ApplicationEngine, KafkaRapid) -> Unit = { _, _ -> }, cioConfiguration: CIOApplicationEngine.Configuration.() -> Unit = { } ): RapidsConnection {
-            val app = ktor ?: defaultKtorApp(cioConfiguration)
+        fun build(configure: (ApplicationEngine, KafkaRapid) -> Unit = { _, _ -> }, configuration: NettyApplicationEngine.Configuration.() -> Unit = { } ): RapidsConnection {
+            val app = ktor ?: defaultKtorApp(configuration)
             configure(app, rapid)
-            return RapidApplication(app, rapid, config.appName, config.instanceId)
+            return RapidApplication(app, rapid)
         }
 
-        private fun defaultKtorApp(cioConfiguration: CIOApplicationEngine.Configuration.() -> Unit): ApplicationEngine {
-            val stopHook = PreStopHook(rapid)
+        private fun defaultKtorApp(configuration: NettyApplicationEngine.Configuration.() -> Unit): ApplicationEngine {
             return defaultNaisApplication(
                 port = config.httpPort,
                 extraMetrics = rapid.getMetrics(),
                 collectorRegistry = config.collectorRegistry,
                 isAliveCheck = rapid::isRunning,
-                isReadyCheck = rapid::isReady,
-                preStopHook = stopHook::handlePreStopRequest,
                 extraModules = modules,
-                cioConfiguration = cioConfiguration
+                configuration = configuration
             )
         }
 
         private fun uncaughtExceptionHandler(thread: Thread, err: Throwable) {
-            log.error("Uncaught exception in thread ${thread.name}: ${err.message}", err)
+            log.error(err) { "Uncaught exception in thread ${thread.name}: ${err.message}" }
         }
     }
 
     class RapidApplicationConfig(
         internal val appName: String?,
         internal val instanceId: String,
-        internal val rapidTopic: String,
-        internal val extraTopics: List<String> = emptyList(),
-        internal val kafkaConfig: Config,
+        internal val kafkaTopics: List<String> = emptyList(),
+        internal val kafkaConfig: KafkaConfig,
         internal val consumerGroupId: String,
         internal val autoOffsetResetConfig: String? = null,
         internal val autoCommit: Boolean? = false,
@@ -206,11 +126,10 @@ class RapidApplication internal constructor(
         internal val maxIntervalMs: Long = maxIntervalMs ?: Duration.ofSeconds(120 + this.maxRecords * 4.toLong()).toMillis()
 
         companion object {
-            fun fromEnv(env: Map<String, String>, kafkaConfig: Config = AivenConfig.default) = RapidApplicationConfig(
-                appName = env["RAPID_APP_NAME"] ?: generateAppName(env) ?: log.info("app name not configured").let { null },
+            fun fromEnv(env: Map<String, String>, kafkaConfig: KafkaConfig = KafkaConfig.default) = RapidApplicationConfig(
+                appName = env["RAPID_APP_NAME"] ?: generateAppName(env) ?: log.info { "app name not configured" }.let { null },
                 instanceId = generateInstanceId(env),
-                rapidTopic = env.getValue("KAFKA_RAPID_TOPIC"),
-                extraTopics = env["KAFKA_EXTRA_TOPIC"]?.split(',')?.map(String::trim) ?: emptyList(),
+                kafkaTopics = env["KAFKA_EXTRA_TOPIC"]?.split(',')?.map(String::trim) ?: emptyList(),
                 kafkaConfig = kafkaConfig,
                 consumerGroupId = env.getValue("KAFKA_CONSUMER_GROUP_ID"),
                 autoOffsetResetConfig = env["KAFKA_RESET_POLICY"],
@@ -226,9 +145,9 @@ class RapidApplication internal constructor(
             }
 
             private fun generateAppName(env: Map<String, String>): String? {
-                val appName = env["NAIS_APP_NAME"] ?: return log.info("not generating app name because NAIS_APP_NAME not set").let { null }
-                val namespace = env["NAIS_NAMESPACE"] ?: return log.info("not generating app name because NAIS_NAMESPACE not set").let { null }
-                val cluster = env["NAIS_CLUSTER_NAME"] ?: return log.info("not generating app name because NAIS_CLUSTER_NAME not set").let { null }
+                val appName = env["NAIS_APP_NAME"] ?: return log.info { "not generating app name because NAIS_APP_NAME not set" }.let { null }
+                val namespace = env["NAIS_NAMESPACE"] ?: return log.info { "not generating app name because NAIS_NAMESPACE not set" }.let { null }
+                val cluster = env["NAIS_CLUSTER_NAME"] ?: return log.info { "not generating app name because NAIS_CLUSTER_NAME not set" }.let { null }
                 return "$appName-$cluster-$namespace"
             }
         }

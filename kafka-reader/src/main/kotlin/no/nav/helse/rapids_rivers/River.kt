@@ -10,7 +10,7 @@ fun interface RandomIdGenerator {
     fun generateId(): String
 }
 
-class River(rapidsConnection: RapidsConnection, private val randomIdGenerator: RandomIdGenerator = RandomIdGenerator.Default) : RapidsConnection.MessageListener {
+class River(rapidsConnection: RapidsConnection) : RapidsConnection.MessageListener {
     private val validations = mutableListOf<PacketValidation>()
 
     private val listeners = mutableListOf<PacketListener>()
@@ -42,7 +42,7 @@ class River(rapidsConnection: RapidsConnection, private val randomIdGenerator: R
     override fun onMessage(message: String, context: MessageContext) {
         val problems = MessageProblems(message)
         try {
-            val packet = JsonMessage(message, problems, randomIdGenerator)
+            val packet = JsonMessage(message, problems)
             validations.forEach { it.validate(packet) }
             if (problems.hasErrors()) {
                 return onError(problems, context)
