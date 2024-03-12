@@ -17,14 +17,14 @@ abstract class RapidsConnection : MessageContext {
         listeners.add(listener)
     }
 
-    protected fun notifyMessage(message: String, context: MessageContext) {
-        listeners.forEach { it.onMessage(message, context) }
+    internal fun notifyMessage(newJsonMessage: NewJsonMessage) {
+        listeners.forEach { it.onMessage(newJsonMessage) }
     }
 
     abstract fun start()
     abstract fun stop()
 
     fun interface MessageListener {
-        fun onMessage(message: String, context: MessageContext)
+        fun onMessage(newJsonMessage: NewJsonMessage)
     }
 }

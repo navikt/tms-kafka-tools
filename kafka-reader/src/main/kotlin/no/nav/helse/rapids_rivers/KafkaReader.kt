@@ -9,8 +9,8 @@ import java.time.Duration
 import java.time.LocalDateTime
 import java.util.*
 
-class KafkaRapid(
-    factory: ConsumerProducerFactory,
+class KafkaReader(
+    factory: ConsumerFactory,
     groupId: String,
     private val kafkaTopics: List<String>,
     consumerProperties: Properties = Properties()
@@ -94,9 +94,9 @@ class KafkaRapid(
     }
 
     private fun onRecord(record: ConsumerRecord<String, String>) = withMDC(recordDiganostics(record)) {
-        when (val recordValue = record.value()) {
+        when (record.value()) {
             null -> log.info { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is null (tombstone)" }
-            else -> notifyMessage(recordValue, KeyMessageContext(this, record.key()))
+            else -> notifyMessage(NewJsonMessage.initMessage(record))
         }
     }
 

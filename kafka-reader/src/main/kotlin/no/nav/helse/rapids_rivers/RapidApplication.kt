@@ -16,13 +16,17 @@ class RapidApplication internal constructor(
     private val rapid: RapidsConnection,
     private val onKtorStartup: () -> Unit = {},
     private val onKtorShutdown: () -> Unit = {}
-) : RapidsConnection() {
+) {
+
+    companion object {
+        private val log = KotlinLogging.logger {}
+    }
 
     init {
         Runtime.getRuntime().addShutdownHook(Thread(::shutdownHook))
     }
 
-    override fun start() {
+    fun start() {
         ktor.start(wait = false)
         try {
             onKtorStartup()
@@ -37,7 +41,7 @@ class RapidApplication internal constructor(
         }
     }
 
-    override fun stop() {
+    fun stop() {
         rapid.stop()
     }
 
@@ -46,22 +50,14 @@ class RapidApplication internal constructor(
         stop()
     }
 
-    companion object {
-        private val log = KotlinLogging.logger {}
-
-        fun create(env: Map<String, String>, configure: (ApplicationEngine, KafkaRapid) -> Unit = {_, _ -> }) =
-            Builder(RapidApplicationConfig.fromEnv(env))
-                .build(configure)
-    }
-
     class Builder(private val config: RapidApplicationConfig) {
 
         init {
             Thread.currentThread().setUncaughtExceptionHandler(::uncaughtExceptionHandler)
         }
 
-        private val rapid = KafkaRapid(
-            factory = ConsumerProducerFactory(config.kafkaConfig),
+        private val rapid = KafkaReader(
+            factory = ConsumerFactory(config.kafkaConfig),
             groupId = config.consumerGroupId,
             consumerProperties = Properties().apply {
                 put(ConsumerConfig.CLIENT_ID_CONFIG, "consumer-${config.instanceId}")
@@ -84,7 +80,7 @@ class RapidApplication internal constructor(
             this.modules.add(module)
         }
 
-        fun build(configure: (ApplicationEngine, KafkaRapid) -> Unit = { _, _ -> }, configuration: NettyApplicationEngine.Configuration.() -> Unit = { } ): RapidsConnection {
+        fun build(configure: (ApplicationEngine, KafkaReader) -> Unit = { _, _ -> }, configuration: NettyApplicationEngine.Configuration.() -> Unit = { } ): RapidApplication {
             val app = ktor ?: defaultKtorApp(configuration)
             configure(app, rapid)
             return RapidApplication(app, rapid)
@@ -107,13 +103,11 @@ class RapidApplication internal constructor(
     }
 
     class RapidApplicationConfig(
-        internal val appName: String?,
         internal val instanceId: String,
         internal val kafkaTopics: List<String> = emptyList(),
         internal val kafkaConfig: KafkaConfig,
         internal val consumerGroupId: String,
         internal val autoOffsetResetConfig: String? = null,
-        internal val autoCommit: Boolean? = false,
         maxIntervalMs: Long? = null,
         maxRecords: Int? = null,
         internal val httpPort: Int = 8080,
@@ -127,13 +121,11 @@ class RapidApplication internal constructor(
 
         companion object {
             fun fromEnv(env: Map<String, String>, kafkaConfig: KafkaConfig = KafkaConfig.default) = RapidApplicationConfig(
-                appName = env["RAPID_APP_NAME"] ?: generateAppName(env) ?: log.info { "app name not configured" }.let { null },
                 instanceId = generateInstanceId(env),
                 kafkaTopics = env["KAFKA_EXTRA_TOPIC"]?.split(',')?.map(String::trim) ?: emptyList(),
                 kafkaConfig = kafkaConfig,
                 consumerGroupId = env.getValue("KAFKA_CONSUMER_GROUP_ID"),
                 autoOffsetResetConfig = env["KAFKA_RESET_POLICY"],
-                autoCommit = env["KAFKA_AUTO_COMMIT"]?.toBoolean(),
                 maxIntervalMs = env["KAFKA_MAX_POLL_INTERVAL_MS"]?.toLong(),
                 maxRecords = env["KAFKA_MAX_RECORDS"]?.toInt() ?: ConsumerConfig.DEFAULT_MAX_POLL_RECORDS,
                 httpPort =  env["HTTP_PORT"]?.toInt() ?: 8080
@@ -142,13 +134,6 @@ class RapidApplication internal constructor(
             private fun generateInstanceId(env: Map<String, String>): String {
                 if (env.containsKey("NAIS_APP_NAME")) return InetAddress.getLocalHost().hostName
                 return UUID.randomUUID().toString()
-            }
-
-            private fun generateAppName(env: Map<String, String>): String? {
-                val appName = env["NAIS_APP_NAME"] ?: return log.info { "not generating app name because NAIS_APP_NAME not set" }.let { null }
-                val namespace = env["NAIS_NAMESPACE"] ?: return log.info { "not generating app name because NAIS_NAMESPACE not set" }.let { null }
-                val cluster = env["NAIS_CLUSTER_NAME"] ?: return log.info { "not generating app name because NAIS_CLUSTER_NAME not set" }.let { null }
-                return "$appName-$cluster-$namespace"
             }
         }
     }
