@@ -1,6 +1,5 @@
 package no.nav.helse.rapids_rivers
 
-import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
@@ -22,23 +21,24 @@ private const val isAliveEndpoint = "/isalive"
 private const val isReadyEndpoint = "/isready"
 private const val metricsEndpoint = "/metrics"
 
-fun defaultNaisApplication(
+fun setupKtorApplication(
     isAliveCheck: () -> Boolean,
     port: Int = 8080,
     extraMetrics: List<MeterBinder> = emptyList(),
     collectorRegistry: CollectorRegistry = CollectorRegistry.defaultRegistry,
-    extraModules: List<Application.() -> Unit> = emptyList(),
-    configuration: NettyApplicationEngine.Configuration.() -> Unit = { },
-) = embeddedServer(Netty, applicationEngineEnvironment {
-    connectors.add(EngineConnectorBuilder().apply {
-        this.port = port
-    })
-    module(metaEndpoints(isAliveCheck, collectorRegistry, extraMetrics))
-    modules.addAll(extraModules)
-}) {
-    apply(configuration)
-    KotlinLogging.logger {}
-}
+    customizeableModule: Application.() -> Unit
+) = embeddedServer(
+    factory = Netty,
+    environment = applicationEngineEnvironment {
+        module {
+
+        }
+        connector {
+            this.port = port
+        }
+        module(metaEndpoints(isAliveCheck, collectorRegistry, extraMetrics))
+    modules.add(customizeableModule)
+})
 
 private fun metaEndpoints(
     isAliveCheck: () -> Boolean,

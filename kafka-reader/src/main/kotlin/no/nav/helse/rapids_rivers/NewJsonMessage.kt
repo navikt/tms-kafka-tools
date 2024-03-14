@@ -16,16 +16,12 @@ data class NewJsonMessage internal constructor(
 
     fun getOrNull(fieldName: String): JsonNode? = json.get(fieldName)
 
-    internal fun withFields(fields: Collection<String>): NewJsonMessage {
-        return copy(json = json.keepFields(fields))
-    }
-
     companion object {
         private val objectMapper = jacksonObjectMapper()
 
         fun initMessage(consumerRecord: ConsumerRecord<String, String>): NewJsonMessage {
             val json = try {
-                objectMapper.readTree(consumerRecord.key())
+                objectMapper.readTree(consumerRecord.value())
             } catch (e: Exception) {
                 throw JsonException(e.message!!)
             }
@@ -63,6 +59,10 @@ data class NewJsonMessage internal constructor(
 
             return objectNode
         }
+    }
+
+    internal fun withFields(fields: Collection<String>): NewJsonMessage {
+        return copy(json = json.keepFields(fields))
     }
 }
 

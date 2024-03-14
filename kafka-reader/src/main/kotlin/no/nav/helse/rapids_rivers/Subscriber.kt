@@ -4,7 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 
 internal const val eventNameField = "@event_name"
 
-abstract class Subscriber: RapidsConnection.MessageListener {
+abstract class Subscriber {
     private val log = KotlinLogging.logger {}
 
     private val subscription by lazy { subscribe() }
@@ -12,7 +12,7 @@ abstract class Subscriber: RapidsConnection.MessageListener {
     abstract fun subscribe(): Subscription
     abstract fun receive(jsonMessage: NewJsonMessage)
 
-    override fun onMessage(newJsonMessage: NewJsonMessage) {
+    fun onMessage(newJsonMessage: NewJsonMessage) {
         val message = newJsonMessage.withFields(subscription.knownFields)
 
         subscription.tryAccept(message, ::receive) {

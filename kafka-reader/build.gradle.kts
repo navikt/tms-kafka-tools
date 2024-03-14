@@ -26,8 +26,11 @@ dependencies {
     implementation(Prometheus.simpleClient)
     implementation(Prometheus.common)
     implementation(JacksonDatatype.datatypeJsr310)
+    testImplementation(Awaitiliy.awaitility)
     testImplementation(Junit.api)
     testImplementation(Junit.engine)
+    testImplementation(KafkaTestContainers.kafka)
+    testImplementation(Kotest.assertionsCore)
 }
 
 tasks {

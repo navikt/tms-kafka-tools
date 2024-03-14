@@ -14,6 +14,13 @@ interface DependencyGroup {
     }
 }
 
+interface AwaitilityDefaults: DependencyGroup {
+    override val groupId get() = "org.awaitility"
+    override val version get() = "4.2.0"
+
+    val awaitility get () = dependency("awaitility")
+}
+
 interface FlywayDefaults: DependencyGroup {
     override val groupId get() = "org.flywaydb"
     override val version get() = "9.21.1"
@@ -53,6 +60,13 @@ interface JjwtDefaults: DependencyGroup {
     val impl get() = dependency("jjwt-impl")
     val jackson get() = dependency("jjwt-jackson")
     val orgjson get() = dependency("jjwt-orgjson")
+}
+
+interface KafkaTestContaintersDefaults: DependencyGroup {
+    override val groupId get() = "org.testcontainers"
+    override val version get() = "1.19.1"
+
+    val kafka get() = dependency("kafka")
 }
 
 interface KafkaDefaults: DependencyGroup {

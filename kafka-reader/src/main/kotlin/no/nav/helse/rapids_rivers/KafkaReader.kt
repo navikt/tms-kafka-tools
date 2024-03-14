@@ -14,7 +14,7 @@ class KafkaReader(
     groupId: String,
     private val kafkaTopics: List<String>,
     consumerProperties: Properties = Properties()
-) : RapidsConnection(), ConsumerRebalanceListener {
+) : KafkaConnection(), ConsumerRebalanceListener {
 
     private val log = KotlinLogging.logger {}
     private val secureLog = KotlinLogging.logger("secureLog")

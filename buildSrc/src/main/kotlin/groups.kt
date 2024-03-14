@@ -2,12 +2,14 @@ import default.*
 
 // Managed by tms-dependency-admin. Overrides and additions should be placed in separate file
 
+object Awaitiliy: AwaitilityDefaults
 object Flyway: FlywayDefaults
 object Hikari: HikariDefaults
 object JacksonDatatype: JacksonDatatypeDefaults
 object Junit: JunitDefaults
 object Jjwt: JjwtDefaults
 object Kafka: KafkaDefaults
+object KafkaTestContainers: KafkaTestContaintersDefaults
 object Kluent: KluentDefaults
 object Kotest: KotestDefaults
 object Kotlin: KotlinDefaults
