@@ -2,11 +2,13 @@ package no.nav.helse.rapids_rivers
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micrometer.core.instrument.binder.kafka.KafkaClientMetrics
+import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineStart.LAZY
 import org.apache.kafka.clients.consumer.*
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.*
 import java.time.Duration
-import java.time.LocalDateTime
+import java.time.ZonedDateTime
 import java.util.*
 
 class KafkaReader(
@@ -14,43 +16,44 @@ class KafkaReader(
     groupId: String,
     private val kafkaTopics: List<String>,
     consumerProperties: Properties = Properties()
-) : KafkaConnection(), ConsumerRebalanceListener {
+): ConsumerRebalanceListener {
+
+    private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private val job = scope.launch(start = LAZY) { consumeMessages() }
 
     private val log = KotlinLogging.logger {}
     private val secureLog = KotlinLogging.logger("secureLog")
 
-    private var state = State.Init
-
     private val consumer = factory.createConsumer(groupId, consumerProperties)
 
-    init {
-        log.info { "rapid initialized" }
+    private val subscribers = mutableListOf<Subscriber>()
+
+    internal fun register(subscriber: Subscriber) {
+        subscribers.add(subscriber)
     }
 
-    fun isRunning() = state == State.Running
+    private fun notifyMessage(newJsonMessage: NewJsonMessage) {
+        subscribers.forEach { it.onMessage(newJsonMessage) }
+    }
 
-    override fun start() {
+    fun isRunning() = job.isActive
+
+    fun start(wait: Boolean = true) {
         log.info { "starting rapid" }
 
-        when(state) {
-            State.Running -> log.info { "rapid already started" }
-            else -> {
-                state = State.Running
-                consumeMessages()
+        job.start()
+
+        if (wait) {
+            runBlocking {
+                job.join()
             }
         }
     }
 
-    override fun stop() {
+    fun stop() = runBlocking {
         log.info { "stopping rapid" }
 
-        when(state) {
-            State.Stopped -> log.info { "rapid already stopped" }
-            else -> {
-                state = State.Stopped
-                consumer.wakeup()
-            }
-        }
+        job.cancelAndJoin()
     }
 
     override fun onPartitionsAssigned(partitions: Collection<TopicPartition>) {
@@ -105,7 +108,7 @@ class KafkaReader(
         var lastException: Exception? = null
         try {
             consumer.subscribe(kafkaTopics, this)
-            while (state == State.Running) {
+            while (job.isActive) {
                 consumer.poll(Duration.ofSeconds(1)).also {
                     withMDC(pollDiganostics(it)) {
                         onRecords(it)
@@ -113,13 +116,10 @@ class KafkaReader(
                 }
             }
         } catch (err: WakeupException) {
-            // throw exception if we have not been told to stop
-            if (state != State.Stopped){
-                throw err
-            }
+            lastException = err
         } catch (err: Exception) {
             lastException = err
-            throw err
+            consumer.wakeup()
         } finally {
             closeResources(lastException)
         }
@@ -127,13 +127,13 @@ class KafkaReader(
 
     private fun pollDiganostics(records: ConsumerRecords<String, String>) = mapOf(
         "rapids_poll_id" to "${UUID.randomUUID()}",
-        "rapids_poll_time" to "${LocalDateTime.now()}",
+        "rapids_poll_time" to "${ZonedDateTime.now()}",
         "rapids_poll_count" to "${records.count()}"
     )
 
     private fun recordDiganostics(record: ConsumerRecord<String, String>) = mapOf(
         "rapids_record_id" to "${UUID.randomUUID()}",
-        "rapids_record_before_notify_time" to "${LocalDateTime.now()}",
+        "rapids_record_before_notify_time" to "${ZonedDateTime.now()}",
         "rapids_record_produced_time" to "${record.timestamp()}",
         "rapids_record_produced_time_type" to "${record.timestampType()}",
         "rapids_record_topic" to record.topic(),
@@ -148,13 +148,13 @@ class KafkaReader(
     }
 
     private fun closeResources(lastException: Exception?) {
-        state = State.Stopped
         if (lastException != null) {
             log.warn{ "stopped consuming messages due to an error" }
             secureLog.warn(lastException) { "stopped consuming messages due to an error" }
         } else {
             log.info { "stopped consuming messages after receiving stop signal" }
         }
+        job.cancel()
         tryAndLog(consumer::close)
     }
 
@@ -169,8 +169,4 @@ class KafkaReader(
     internal fun getMetrics() = listOf(KafkaClientMetrics(consumer))
 
     private fun ConsumerRecord<*, *>.topicPartition() = TopicPartition(topic(), partition())
-
-    private enum class State {
-        Init, Running, Stopped
-    }
 }

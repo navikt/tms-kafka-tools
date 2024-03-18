@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.prometheus.client.CollectorRegistry
+import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.OffsetResetStrategy
 import java.net.InetAddress
@@ -12,7 +13,7 @@ import java.util.*
 
 class KafkaApplication internal constructor(
     private val ktor: ApplicationEngine,
-    private val reader: KafkaConnection,
+    private val reader: KafkaReader,
     private val onStartup: () -> Unit = {},
     private val onShutdown: () -> Unit = {}
 ) {
