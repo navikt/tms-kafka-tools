@@ -8,9 +8,9 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
-data class NewJsonMessage internal constructor(
+data class JsonMessage internal constructor(
     val json: JsonNode,
-    val metadata: EventMetadata?
+    val metadata: EventMetadata
 ) {
     operator fun get(fieldName: String): JsonNode = json.get(fieldName)!!
 
@@ -19,7 +19,7 @@ data class NewJsonMessage internal constructor(
     companion object {
         private val objectMapper = jacksonObjectMapper()
 
-        fun initMessage(consumerRecord: ConsumerRecord<String, String>): NewJsonMessage {
+        fun fromRecord(consumerRecord: ConsumerRecord<String, String>): JsonMessage {
             val json = try {
                 objectMapper.readTree(consumerRecord.value())
             } catch (e: Exception) {
@@ -30,7 +30,7 @@ data class NewJsonMessage internal constructor(
                 throw JsonException("Top-level json object must be container node")
             }
 
-            return NewJsonMessage(
+            return JsonMessage(
                 json = json,
                 metadata = EventMetadata(
                     topic = consumerRecord.topic(),
@@ -61,7 +61,7 @@ data class NewJsonMessage internal constructor(
         }
     }
 
-    internal fun withFields(fields: Collection<String>): NewJsonMessage {
+    internal fun withFields(fields: Collection<String>): JsonMessage {
         return copy(json = json.keepFields(fields))
     }
 }

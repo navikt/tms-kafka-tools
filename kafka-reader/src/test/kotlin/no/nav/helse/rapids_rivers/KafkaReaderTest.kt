@@ -1,8 +1,5 @@
 package no.nav.helse.rapids_rivers
 
-import com.fasterxml.jackson.databind.SerializationFeature
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.matchers.collections.shouldContainOnly
 import io.kotest.matchers.shouldBe
@@ -65,7 +62,7 @@ class KafkaReaderTest {
 
     @Test
     fun `no effect calling start multiple times`() {
-        val reader = startTestReader()
+        val reader = runTestReader()
 
         shouldNotThrowAny { reader.start(wait = false) }
         reader.isRunning() shouldBe true
@@ -73,7 +70,7 @@ class KafkaReaderTest {
 
     @Test
     fun `can stop`() {
-        val reader = startTestReader()
+        val reader = runTestReader()
 
         reader.stop()
         reader.isRunning() shouldBe false
@@ -85,12 +82,12 @@ class KafkaReaderTest {
         val failingSubscriber = object : Subscriber() {
             override fun subscribe() = Subscription.forEvent("test")
 
-            override fun receive(jsonMessage: NewJsonMessage) {
+            override fun receive(jsonMessage: JsonMessage) {
                 throw Exception("Generic error")
             }
         }
 
-        val reader = startTestReader(subscribers = listOf(failingSubscriber))
+        val reader = runTestReader(subscribers = listOf(failingSubscriber))
 
         producer.send(
             ProducerRecord(testTopic, UUID.randomUUID().toString(), """{ "@event_name": "test" }""")
@@ -123,7 +120,7 @@ class KafkaReaderTest {
             override fun subscribe() = Subscription.forEvent("offset-test")
                 .requireFields("index")
 
-            override fun receive(jsonMessage: NewJsonMessage) {
+            override fun receive(jsonMessage: JsonMessage) {
                 if (jsonMessage["index"].asInt() == failOnMessage) {
                     readFailedMessage = true
                     throw RuntimeException("an unexpected error happened")
@@ -131,7 +128,7 @@ class KafkaReaderTest {
             }
         }
 
-        val reader = startTestReader(waitUpToSeconds = 0, subscribers = listOf(failingSubscriber))
+        val reader = runTestReader(waitUpToSeconds = 0, subscribers = listOf(failingSubscriber))
 
         await("wait until the failed message has been read")
             .atMost(20, TimeUnit.SECONDS)
@@ -154,7 +151,7 @@ class KafkaReaderTest {
     fun `ignore tombstone messages`() {
         val recordMetadata = sendAndAwait(testTopic, null)
 
-        startTestReader()
+        runTestReader()
 
         val offsets = adminClient
             .listConsumerGroupOffsets(groupId)
@@ -176,7 +173,7 @@ class KafkaReaderTest {
                 .requireFields("count")
                 .requireValue("name", "apples")
 
-            override fun receive(jsonMessage: NewJsonMessage) {
+            override fun receive(jsonMessage: JsonMessage) {
                 appleOrders += 1
                 appleCount += jsonMessage["count"].asInt()
             }
@@ -188,7 +185,7 @@ class KafkaReaderTest {
             override fun subscribe() = Subscription.forEvent("order_placed")
                 .requireFields("category", "name", "count")
 
-            override fun receive(jsonMessage: NewJsonMessage) {
+            override fun receive(jsonMessage: JsonMessage) {
                 itemsForCategories.compute(jsonMessage["category"].asText()) { _, existing ->
                     val name = jsonMessage["name"].asText()
 
@@ -202,7 +199,7 @@ class KafkaReaderTest {
 
             override fun subscribe() = Subscription.forEvent("break")
 
-            override fun receive(jsonMessage: NewJsonMessage) { breakSignalled = true }
+            override fun receive(jsonMessage: JsonMessage) { breakSignalled = true }
         }
 
         listOf(
@@ -215,7 +212,7 @@ class KafkaReaderTest {
             """{ "@event_name": "break" }"""
         ).forEach(::sendTestMessage)
 
-        startTestReader(subscribers = listOf(categoryChecker, appleCounter, breakChecker))
+        runTestReader(subscribers = listOf(categoryChecker, appleCounter, breakChecker))
 
         await("Wait until we have read messages up until break")
             .atMost(10, TimeUnit.SECONDS)
@@ -226,6 +223,32 @@ class KafkaReaderTest {
 
         itemsForCategories["food"] shouldContainOnly listOf("apples", "bananas")
         itemsForCategories["drink"] shouldContainOnly listOf("juice", "sparkling")
+    }
+
+    @Test
+    fun `tolerates bad or broken json messages`() {
+        val breakChecker = object : Subscriber() {
+            var breakSignalled = false
+
+            override fun subscribe() = Subscription.forEvent("break")
+
+            override fun receive(jsonMessage: JsonMessage) { breakSignalled = true }
+        }
+
+        listOf(
+            """{completely invalid json""",
+            """123""",
+            """"json":"fragment"""",
+            """{"@event_name": "break"}"""
+        ).forEach(::sendTestMessage)
+
+        val reader = runTestReader(subscribers = listOf(breakChecker))
+
+        await("Wait until break has been signalled")
+            .atMost(10, TimeUnit.SECONDS)
+            .until(breakChecker::breakSignalled)
+
+        reader.isRunning() shouldBe true
     }
 
     private fun orderJson(category: String, name: String, count: Int) = """
@@ -241,7 +264,7 @@ class KafkaReaderTest {
         producer.send(ProducerRecord(testTopic, UUID.randomUUID().toString(), value))
 
 
-    private fun startTestReader(waitUpToSeconds: Long = 10, subscribers: List<Subscriber> = emptyList()): KafkaReader {
+    private fun runTestReader(waitUpToSeconds: Long = 10, subscribers: List<Subscriber> = emptyList()): KafkaReader {
         val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), consumerProperties)
 
         subscribers.forEach {

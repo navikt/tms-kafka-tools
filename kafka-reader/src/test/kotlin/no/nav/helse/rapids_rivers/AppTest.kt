@@ -43,7 +43,7 @@ class AppTest {
 class Subby: Subscriber() {
     override fun subscribe() = Subscription.forEvent("test").requireFields("field")
 
-    override fun receive(jsonMessage: NewJsonMessage) {
+    override fun receive(jsonMessage: JsonMessage) {
         println("Yo")
     }
 }

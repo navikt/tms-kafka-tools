@@ -10,9 +10,9 @@ abstract class Subscriber {
     private val subscription by lazy { subscribe() }
 
     abstract fun subscribe(): Subscription
-    abstract fun receive(jsonMessage: NewJsonMessage)
+    abstract fun receive(jsonMessage: JsonMessage)
 
-    fun onMessage(newJsonMessage: NewJsonMessage) {
+    fun onMessage(newJsonMessage: JsonMessage) {
         val message = newJsonMessage.withFields(subscription.knownFields)
 
         subscription.tryAccept(message, ::receive) {
@@ -124,12 +124,13 @@ class Subscription private constructor(private val eventName: String) {
     }
 
     internal fun tryAccept(
-        jsonMessage: NewJsonMessage,
-        onAccept: (NewJsonMessage) -> Unit,
+        jsonMessage: JsonMessage,
+        onAccept: (JsonMessage) -> Unit,
         onIgnore: (IgnoreReason) -> Unit
     ) {
         if (jsonMessage.json[eventNameField].asText() != eventName) {
             onIgnore(IgnoreReason.incorrectEvent(jsonMessage.json[eventNameField].asText()))
+            return
         }
 
         val presentFields = jsonMessage.json.fields().asSequence().toList().map { it.key }.toSet()
@@ -162,7 +163,7 @@ class Subscription private constructor(private val eventName: String) {
         }
     }
 
-    private fun valueIsPresent(jsonMessage: NewJsonMessage, field: String, value: Any): Boolean {
+    private fun valueIsPresent(jsonMessage: JsonMessage, field: String, value: Any): Boolean {
         val node = jsonMessage.json[field]
 
         if (node.isMissingOrNull() || node.isContainerNode) {

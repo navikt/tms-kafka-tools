@@ -32,7 +32,7 @@ class KafkaReader(
         subscribers.add(subscriber)
     }
 
-    private fun notifyMessage(newJsonMessage: NewJsonMessage) {
+    private fun notifyMessage(newJsonMessage: JsonMessage) {
         subscribers.forEach { it.onMessage(newJsonMessage) }
     }
 
@@ -99,9 +99,16 @@ class KafkaReader(
     private fun onRecord(record: ConsumerRecord<String, String>) = withMDC(recordDiganostics(record)) {
         when (record.value()) {
             null -> log.info { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is null (tombstone)" }
-            else -> notifyMessage(NewJsonMessage.initMessage(record))
+            else -> try {
+                notifyMessage(JsonMessage.fromRecord(record))
+            } catch (e: JsonException) {
+                log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
+                secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
+            }
         }
     }
+
+
 
 
     private fun consumeMessages() {
