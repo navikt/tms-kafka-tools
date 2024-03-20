@@ -65,17 +65,17 @@ class Subscription private constructor(private val eventName: String) {
     private val requiredValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val rejectedValues: MutableMap<String, List<Any>> = mutableMapOf()
 
-    fun requireFields(vararg fields: String) = also {
+    fun withFields(vararg fields: String) = also {
         knownFields.addAll(fields)
         requiredFields.addAll(fields)
     }
 
-    fun optionalFields(vararg fields: String) = also {
+    fun withOptionalFields(vararg fields: String) = also {
         knownFields.addAll(fields)
         optionalFields.addAll(fields)
     }
 
-    fun requireValue(field: String, value: Any) = also {
+    fun withValue(field: String, value: Any) = also {
         if (!value.isPrimitive()) {
             throw SubscriptionException(
                 "Tried to require field \"$field\" to be value of type ${value::class.simpleName}. Required value must be primitive."
@@ -86,7 +86,7 @@ class Subscription private constructor(private val eventName: String) {
         requiredValues += field to listOf(value)
     }
 
-    fun requireAnyValue(field: String, vararg values: Any) = also {
+    fun withAnyValue(field: String, vararg values: Any) = also {
         if (values.any { !it.isPrimitive() }) {
             throw SubscriptionException(
                 "Tried to require field \"$field\" to be a value of incompatible type(s). Required value(s) must be primitive."

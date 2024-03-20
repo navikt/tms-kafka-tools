@@ -120,7 +120,7 @@ class KafkaReaderTest {
 
         val failingSubscriber = object : Subscriber() {
             override fun subscribe() = Subscription.forEvent("offset-test")
-                .requireFields("index")
+                .withFields("index")
 
             override fun receive(jsonMessage: JsonMessage) {
                 if (jsonMessage["index"].asInt() == failOnMessage) {
@@ -172,8 +172,8 @@ class KafkaReaderTest {
 
         val appleCounter = object : Subscriber() {
             override fun subscribe() = Subscription.forEvent("order_placed")
-                .requireFields("count")
-                .requireValue("name", "apples")
+                .withFields("count")
+                .withValue("name", "apples")
 
             override fun receive(jsonMessage: JsonMessage) {
                 appleOrders += 1
@@ -185,7 +185,7 @@ class KafkaReaderTest {
 
         val categoryChecker = object : Subscriber() {
             override fun subscribe() = Subscription.forEvent("order_placed")
-                .requireFields("category", "name", "count")
+                .withFields("category", "name", "count")
 
             override fun receive(jsonMessage: JsonMessage) {
                 itemsForCategories.compute(jsonMessage["category"].asText()) { _, existing ->

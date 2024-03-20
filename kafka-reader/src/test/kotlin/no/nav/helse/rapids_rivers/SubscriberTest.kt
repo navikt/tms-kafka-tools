@@ -7,7 +7,7 @@ import java.time.ZonedDateTime
 import java.util.*
 
 
-class SubscriptionStressTest {
+class SubscriberTest {
     private val objectMapper = jacksonObjectMapper()
 
     @Test
@@ -47,7 +47,7 @@ class SubscriptionStressTest {
             var count = 0
 
             override fun subscribe() = Subscription.forEvent("order")
-                .requireFields("item")
+                .withFields("item")
 
             override fun receive(jsonMessage: JsonMessage) {
                 count++
@@ -85,7 +85,7 @@ class SubscriptionStressTest {
             var count = 0
 
             override fun subscribe() = Subscription.forEvent("order")
-                .requireValue("color", "green")
+                .withValue("color", "green")
 
             override fun receive(jsonMessage: JsonMessage) {
                 count++
@@ -117,7 +117,7 @@ class SubscriptionStressTest {
             var count = 0
 
             override fun subscribe() = Subscription.forEvent("order")
-                .requireAnyValue("color", "green", "red")
+                .withAnyValue("color", "green", "red")
 
             override fun receive(jsonMessage: JsonMessage) {
                 count++
@@ -149,9 +149,9 @@ class SubscriptionStressTest {
             var count = 0
 
             override fun subscribe() = Subscription.forEvent("order")
-                .requireValue("amount", 10)
-                .requireValue("price", 10.50)
-                .requireValue("delivered", true)
+                .withValue("amount", 10)
+                .withValue("price", 10.50)
+                .withValue("delivered", true)
 
             override fun receive(jsonMessage: JsonMessage) {
                 count++
