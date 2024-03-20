@@ -4,7 +4,6 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.prometheus.client.CollectorRegistry
-import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.OffsetResetStrategy
 import java.net.InetAddress
@@ -21,24 +20,28 @@ class KafkaApplication internal constructor(
         Runtime.getRuntime().addShutdownHook(Thread(::shutdownHook))
     }
 
-    fun start() {
+    private val gracePeriod = 5000L
+    private val forcefulShutdownTimeout = 30000L
+
+    suspend fun start() {
         ktor.start(wait = false)
         try {
             onStartup()
             reader.start()
         } finally {
             onShutdown()
-            val gracePeriod = 5000L
-            val forcefulShutdownTimeout = 30000L
             log.info { "shutting down ktor, waiting $gracePeriod ms for workers to exit. Forcing shutdown after $forcefulShutdownTimeout ms" }
             ktor.stop(gracePeriod, forcefulShutdownTimeout)
-            log.info { "ktor shutdown complete: end of life. goodbye." }
+            log.info { "ktor shutdown complete. goodbye." }
         }
     }
 
-    fun stop() {
+    internal fun stop() {
         reader.stop()
+        ktor.stop(gracePeriod, forcefulShutdownTimeout)
     }
+
+    fun isRunning() = reader.isRunning()
 
     private fun shutdownHook() {
         log.info { "received shutdown signal, stopping app" }
@@ -64,7 +67,8 @@ class KafkaApplicationBuilder internal constructor() {
         Thread.currentThread().setUncaughtExceptionHandler(::uncaughtExceptionHandler)
     }
 
-    private var httpPort: Int = 8080
+    var httpPort: Int = 8080
+
     private var customizableModule: Application.() -> Unit = { }
     private var startupHook: () -> Unit = { }
     private var shutdownHook: () -> Unit = { }
@@ -115,13 +119,14 @@ class KafkaApplicationBuilder internal constructor() {
                 put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, config.maxIntervalMs)
             },
             kafkaTopics = config.kafkaTopics,
+            subscribers = subscribers
         )
 
         return KafkaApplication(
             reader = reader,
             ktor = setupKtorApplication(
                 port = httpPort,
-                extraMetrics = reader.getMetrics(),
+                metrics = reader.getMetrics(),
                 collectorRegistry = collectorRegistry,
                 isAliveCheck = reader::isRunning,
                 customizeableModule = customizableModule,
@@ -140,7 +145,7 @@ class KafkaConfigBuilder internal constructor() {
     var groupId: String? = null
     var resetPolicy: String = OffsetResetStrategy.EARLIEST.name
     var maxRecords: Int = ConsumerConfig.DEFAULT_MAX_POLL_RECORDS
-    var maxInterval: Duration = Duration.ofSeconds(120 + this.maxRecords * 4.toLong())
+    var maxInterval: Duration = Duration.ofSeconds(120L + this.maxRecords)
 
     var environment: Map<String, String> = System.getenv()
 
@@ -156,7 +161,7 @@ class KafkaConfigBuilder internal constructor() {
             kafkaConfig = KafkaConfig.fromEnv(enableSSL, environment),
             consumerGroupId = groupId!!,
             autoOffsetResetConfig = resetPolicy.lowercase(),
-            maxIntervalMs = maxInterval.toMillis(),
+            maxIntervalMs = maxInterval.toMillis().toInt(),
             maxRecords = maxRecords
         )
     }
@@ -173,6 +178,6 @@ internal class KafkaReaderConfig (
     val kafkaConfig: KafkaConfig,
     val consumerGroupId: String,
     val autoOffsetResetConfig: String,
-    val maxIntervalMs: Long,
+    val maxIntervalMs: Int,
     val maxRecords: Int
 )

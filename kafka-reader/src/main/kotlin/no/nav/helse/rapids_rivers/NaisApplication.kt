@@ -21,22 +21,20 @@ private const val isAliveEndpoint = "/isalive"
 private const val isReadyEndpoint = "/isready"
 private const val metricsEndpoint = "/metrics"
 
-fun setupKtorApplication(
+internal fun setupKtorApplication(
     isAliveCheck: () -> Boolean,
     port: Int = 8080,
-    extraMetrics: List<MeterBinder> = emptyList(),
+    metrics: List<MeterBinder> = emptyList(),
     collectorRegistry: CollectorRegistry = CollectorRegistry.defaultRegistry,
     customizeableModule: Application.() -> Unit
 ) = embeddedServer(
     factory = Netty,
     environment = applicationEngineEnvironment {
-        module {
-
-        }
         connector {
             this.port = port
         }
-        module(metaEndpoints(isAliveCheck, collectorRegistry, extraMetrics))
+        module(metaEndpoints(isAliveCheck, collectorRegistry, metrics))
+
     modules.add(customizeableModule)
 })
 

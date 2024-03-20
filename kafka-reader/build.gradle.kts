@@ -31,6 +31,7 @@ dependencies {
     testImplementation(Junit.engine)
     testImplementation(KafkaTestContainers.kafka)
     testImplementation(Kotest.assertionsCore)
+    testImplementation(Ktor.Test.serverTestHost)
 }
 
 tasks {

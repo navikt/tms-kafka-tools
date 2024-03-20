@@ -61,15 +61,17 @@ class KafkaReaderTest {
     }
 
     @Test
-    fun `no effect calling start multiple times`() {
+    fun `no effect calling start multiple times`() = runBlocking<Unit> {
         val reader = runTestReader()
 
-        shouldNotThrowAny { reader.start(wait = false) }
+        shouldNotThrowAny {
+            reader.start(wait = false)
+        }
         reader.isRunning() shouldBe true
     }
 
     @Test
-    fun `can stop`() {
+    fun `can stop`() = runBlocking {
         val reader = runTestReader()
 
         reader.stop()
@@ -78,7 +80,7 @@ class KafkaReaderTest {
     }
 
     @Test
-    fun `should stop on errors`() {
+    fun `should stop on errors`() = runBlocking {
         val failingSubscriber = object : Subscriber() {
             override fun subscribe() = Subscription.forEvent("test")
 
@@ -101,7 +103,7 @@ class KafkaReaderTest {
     }
 
     @Test
-    fun `in case of exception, the offset committed is the erroneous record`() {
+    fun `in case of exception, the offset committed is the erroneous record`() = runBlocking<Unit> {
         val offsets = (0..100).map {
             producer.send(ProducerRecord(
                 testTopic,
@@ -148,7 +150,7 @@ class KafkaReaderTest {
     }
 
     @Test
-    fun `ignore tombstone messages`() {
+    fun `ignore tombstone messages`() = runBlocking<Unit> {
         val recordMetadata = sendAndAwait(testTopic, null)
 
         runTestReader()
@@ -164,7 +166,7 @@ class KafkaReaderTest {
     }
 
     @Test
-    fun `can read message and pass on to subscribers`() {
+    fun `can read message and pass on to subscribers`() = runBlocking {
         var appleOrders = 0
         var appleCount = 0
 
@@ -226,7 +228,7 @@ class KafkaReaderTest {
     }
 
     @Test
-    fun `tolerates bad or broken json messages`() {
+    fun `tolerates bad or broken json messages`() = runBlocking<Unit> {
         val breakChecker = object : Subscriber() {
             var breakSignalled = false
 
@@ -264,12 +266,8 @@ class KafkaReaderTest {
         producer.send(ProducerRecord(testTopic, UUID.randomUUID().toString(), value))
 
 
-    private fun runTestReader(waitUpToSeconds: Long = 10, subscribers: List<Subscriber> = emptyList()): KafkaReader {
-        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), consumerProperties)
-
-        subscribers.forEach {
-            reader.register(it)
-        }
+    private suspend fun runTestReader(waitUpToSeconds: Long = 10, subscribers: List<Subscriber> = emptyList()): KafkaReader {
+        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), subscribers, consumerProperties)
 
         kafkaReaders.add(reader)
 

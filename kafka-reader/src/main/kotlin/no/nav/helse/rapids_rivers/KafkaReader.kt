@@ -15,6 +15,7 @@ class KafkaReader(
     factory: ConsumerFactory,
     groupId: String,
     private val kafkaTopics: List<String>,
+    private val subscribers: List<Subscriber>,
     consumerProperties: Properties = Properties()
 ): ConsumerRebalanceListener {
 
@@ -26,27 +27,19 @@ class KafkaReader(
 
     private val consumer = factory.createConsumer(groupId, consumerProperties)
 
-    private val subscribers = mutableListOf<Subscriber>()
-
-    internal fun register(subscriber: Subscriber) {
-        subscribers.add(subscriber)
-    }
-
     private fun notifyMessage(newJsonMessage: JsonMessage) {
         subscribers.forEach { it.onMessage(newJsonMessage) }
     }
 
     fun isRunning() = job.isActive
 
-    fun start(wait: Boolean = true) {
+    suspend fun start(wait: Boolean = true) {
         log.info { "starting rapid" }
 
         job.start()
 
         if (wait) {
-            runBlocking {
-                job.join()
-            }
+            job.join()
         }
     }
 
