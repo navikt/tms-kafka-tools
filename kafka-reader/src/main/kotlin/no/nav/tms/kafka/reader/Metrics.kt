@@ -1,4 +1,4 @@
-package no.nav.helse.rapids_rivers
+package no.nav.tms.kafka.reader
 
 import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.Counter

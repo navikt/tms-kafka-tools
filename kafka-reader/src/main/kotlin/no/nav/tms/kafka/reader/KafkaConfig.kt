@@ -1,4 +1,4 @@
-package no.nav.helse.rapids_rivers
+package no.nav.tms.kafka.reader
 
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer.ConsumerConfig

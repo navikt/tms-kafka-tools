@@ -1,4 +1,4 @@
-package no.nav.helse.rapids_rivers
+package no.nav.tms.kafka.reader
 
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.serialization.StringDeserializer

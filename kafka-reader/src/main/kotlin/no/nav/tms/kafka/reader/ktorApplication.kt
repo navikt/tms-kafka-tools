@@ -1,4 +1,4 @@
-package no.nav.helse.rapids_rivers
+package no.nav.tms.kafka.reader
 
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode

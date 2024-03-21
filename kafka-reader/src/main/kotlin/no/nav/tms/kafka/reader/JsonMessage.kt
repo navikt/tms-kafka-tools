@@ -1,4 +1,4 @@
-package no.nav.helse.rapids_rivers
+package no.nav.tms.kafka.reader
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.contains

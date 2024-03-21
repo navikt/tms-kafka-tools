@@ -1,4 +1,4 @@
-package no.nav.helse.rapids_rivers
+package no.nav.tms.kafka.reader
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micrometer.core.instrument.binder.kafka.KafkaClientMetrics

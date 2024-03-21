@@ -1,4 +1,4 @@
-package no.nav.helse.rapids_rivers
+package no.nav.tms.kafka.reader
 
 import io.kotest.matchers.shouldBe
 import io.ktor.client.*
@@ -53,7 +53,7 @@ class KafkaApplicationIT {
 
         val stateHolder = TestStateHolder()
 
-        val greenBeadCounter = object : Subscriber () {
+        val greenBeadCounter = object : Subscriber() {
             override fun subscribe() = Subscription.forEvent("beads_counted")
                 .withFields("amount")
                 .withValue("color", "green")

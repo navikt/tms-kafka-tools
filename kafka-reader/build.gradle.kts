@@ -50,7 +50,7 @@ publishing {
     repositories{
         mavenLocal()
         maven {
-            url = uri("https://maven.pkg.github.com/navikt/tms-varsel-authority")
+            url = uri("https://maven.pkg.github.com/navikt/tms-kafka-tools")
             credentials {
                 username = System.getenv("GITHUB_ACTOR")
                 password = System.getenv("GITHUB_TOKEN")
@@ -60,8 +60,8 @@ publishing {
 
     publications {
         create<MavenPublication>("gpr") {
-            groupId = "no.nav.tms.varsel"
-            artifactId = "java-builder"
+            groupId = "no.nav.tms.kafka"
+            artifactId = "kafka-reader"
             version = libraryVersion
             from(components["java"])
         }
