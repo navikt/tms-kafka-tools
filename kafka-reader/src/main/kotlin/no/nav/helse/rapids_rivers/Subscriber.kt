@@ -10,9 +10,9 @@ abstract class Subscriber {
     private val subscription by lazy { subscribe() }
 
     abstract fun subscribe(): Subscription
-    abstract fun receive(jsonMessage: JsonMessage)
+    abstract suspend fun receive(jsonMessage: JsonMessage)
 
-    fun onMessage(jsonMessage: JsonMessage) {
+    suspend fun onMessage(jsonMessage: JsonMessage) {
         val message = jsonMessage.withFields(subscription.knownFields)
 
         subscription.tryAccept(message, ::receive) {
@@ -123,9 +123,9 @@ class Subscription private constructor(private val eventName: String) {
         else -> false
     }
 
-    internal fun tryAccept(
+    internal suspend fun tryAccept(
         jsonMessage: JsonMessage,
-        onAccept: (JsonMessage) -> Unit,
+        onAccept: suspend (JsonMessage) -> Unit,
         onIgnore: (IgnoreReason) -> Unit
     ) {
         if (jsonMessage.eventName != eventName) {

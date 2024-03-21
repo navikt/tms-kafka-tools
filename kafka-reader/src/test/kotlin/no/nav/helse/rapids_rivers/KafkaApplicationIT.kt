@@ -58,7 +58,7 @@ class KafkaApplicationIT {
                 .withFields("amount")
                 .withValue("color", "green")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 stateHolder.greenBeads += jsonMessage["amount"].asInt()
             }
         }

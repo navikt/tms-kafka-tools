@@ -84,7 +84,7 @@ class KafkaReaderTest {
         val failingSubscriber = object : Subscriber() {
             override fun subscribe() = Subscription.forEvent("test")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 throw Exception("Generic error")
             }
         }
@@ -122,7 +122,7 @@ class KafkaReaderTest {
             override fun subscribe() = Subscription.forEvent("offset-test")
                 .withFields("index")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 if (jsonMessage["index"].asInt() == failOnMessage) {
                     readFailedMessage = true
                     throw RuntimeException("an unexpected error happened")
@@ -175,7 +175,7 @@ class KafkaReaderTest {
                 .withFields("count")
                 .withValue("name", "apples")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 appleOrders += 1
                 appleCount += jsonMessage["count"].asInt()
             }
@@ -187,7 +187,7 @@ class KafkaReaderTest {
             override fun subscribe() = Subscription.forEvent("order_placed")
                 .withFields("category", "name", "count")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 itemsForCategories.compute(jsonMessage["category"].asText()) { _, existing ->
                     val name = jsonMessage["name"].asText()
 
@@ -201,7 +201,7 @@ class KafkaReaderTest {
 
             override fun subscribe() = Subscription.forEvent("break")
 
-            override fun receive(jsonMessage: JsonMessage) { breakSignalled = true }
+            override suspend fun receive(jsonMessage: JsonMessage) { breakSignalled = true }
         }
 
         listOf(
@@ -234,7 +234,7 @@ class KafkaReaderTest {
 
             override fun subscribe() = Subscription.forEvent("break")
 
-            override fun receive(jsonMessage: JsonMessage) { breakSignalled = true }
+            override suspend fun receive(jsonMessage: JsonMessage) { breakSignalled = true }
         }
 
         listOf(

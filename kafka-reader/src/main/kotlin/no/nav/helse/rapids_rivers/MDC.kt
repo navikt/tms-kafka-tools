@@ -9,7 +9,7 @@ fun <R> withMDC(keyvalue: Pair<String, String>, block: () -> R): R {
     }
 }
 
-fun <R> withMDC(context: Map<String, String>, block: () -> R): R {
+suspend fun <R> withMDC(context: Map<String, String>, block: suspend () -> R): R {
     return CloseableMDCContext(context).use {
         block()
     }

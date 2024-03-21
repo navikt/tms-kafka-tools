@@ -27,7 +27,7 @@ internal class KafkaReader(
 
     private val consumer = factory.createConsumer(groupId, consumerProperties)
 
-    private fun notifyMessage(newJsonMessage: JsonMessage) {
+    private suspend fun notifyMessage(newJsonMessage: JsonMessage) {
         subscribers.forEach { it.onMessage(newJsonMessage) }
     }
 
@@ -60,7 +60,7 @@ internal class KafkaReader(
         partitions.forEach { it.commitSync() }
     }
 
-    private fun onRecords(records: ConsumerRecords<String, String>) {
+    private suspend fun onRecords(records: ConsumerRecords<String, String>) {
         if (records.isEmpty) {
             return // poll returns an empty collection in case of rebalancing
         }
@@ -89,7 +89,7 @@ internal class KafkaReader(
         }
     }
 
-    private fun onRecord(record: ConsumerRecord<String, String>) = withMDC(recordDiganostics(record)) {
+    private suspend fun onRecord(record: ConsumerRecord<String, String>) = withMDC(recordDiganostics(record)) {
         when (record.value()) {
             null -> log.info { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is null (tombstone)" }
             else -> try {

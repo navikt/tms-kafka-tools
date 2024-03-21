@@ -2,6 +2,7 @@ package no.nav.helse.rapids_rivers
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
 import java.time.ZonedDateTime
 import java.util.*
@@ -11,140 +12,140 @@ class SubscriberTest {
     private val objectMapper = jacksonObjectMapper()
 
     @Test
-    fun `accepts only messages with correct name`() {
+    fun `accepts only messages with correct name`() = runBlocking<Unit> {
         val orderListener = object : Subscriber() {
             var count = 0
 
             override fun subscribe() = Subscription.forEvent("order")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 count++
             }
         }
 
         """{ "@event_name": "sale" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 0
 
         """{ "@event_name": "delivery" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 0
 
         """{ "@event_name": "order" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 1
     }
 
     @Test
-    fun `accepts only messages with required fields`() {
+    fun `accepts only messages with required fields`() = runBlocking<Unit> {
         val orderListener = object : Subscriber() {
             var count = 0
 
             override fun subscribe() = Subscription.forEvent("order")
                 .withFields("item")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 count++
             }
         }
 
         """{ "@event_name": "order" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 0
 
         """{ "@event_name": "order", "item": "apples" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 1
 
         """{ "@event_name": "order", "item": "apples", "price": 25.50 }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 2
 
         """{ "@event_name": "order", "price": 25.50 }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 2
     }
 
     @Test
-    fun `accepts only messages with required value`() {
+    fun `accepts only messages with required value`() = runBlocking<Unit> {
         val orderListener = object : Subscriber() {
             var count = 0
 
             override fun subscribe() = Subscription.forEvent("order")
                 .withValue("color", "green")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 count++
             }
         }
 
         """{ "@event_name": "order", "color": "blue" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 0
 
         """{ "@event_name": "order", "color": "green" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 1
 
         """{ "@event_name": "order", "color": "red" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 1
     }
 
     @Test
-    fun `accepts only messages with any of required values`() {
+    fun `accepts only messages with any of required values`() = runBlocking<Unit> {
         val orderListener = object : Subscriber() {
             var count = 0
 
             override fun subscribe() = Subscription.forEvent("order")
                 .withAnyValue("color", "green", "red")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 count++
             }
         }
 
         """{ "@event_name": "order", "color": "blue" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 0
 
         """{ "@event_name": "order", "color": "green" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 1
 
         """{ "@event_name": "order", "color": "red" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 2
     }
 
     @Test
-    fun `allows required value to be non-string`() {
+    fun `allows required value to be non-string`() = runBlocking<Unit> {
         val orderListener = object : Subscriber() {
             var count = 0
 
@@ -153,64 +154,64 @@ class SubscriberTest {
                 .withValue("price", 10.50)
                 .withValue("delivered", true)
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 count++
             }
         }
 
         """{ "@event_name": "order", "amount": 5, "price": 10.50, "delivered": true }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 0
 
         """{ "@event_name": "order", "amount": 10, "price": 20.0, "delivered": true }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 0
 
         """{ "@event_name": "order", "amount": 10, "price": 10.50, "delivered": false }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 0
 
         """{ "@event_name": "order", "amount": 10, "price": 10.50, "delivered": true }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 1
     }
 
     @Test
-    fun `ignores rejected value`() {
+    fun `ignores rejected value`() = runBlocking<Unit> {
         val orderListener = object : Subscriber() {
             var count = 0
 
             override fun subscribe() = Subscription.forEvent("order")
                 .rejectValue("color", "green")
 
-            override fun receive(jsonMessage: JsonMessage) {
+            override suspend fun receive(jsonMessage: JsonMessage) {
                 count++
             }
         }
 
         """{ "@event_name": "order", "color": "blue" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 1
 
         """{ "@event_name": "order", "color": "green" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 1
 
         """{ "@event_name": "order", "color": "red" }"""
             .asMessage()
-            .let(orderListener::onMessage)
+            .let { orderListener.onMessage(it) }
 
         orderListener.count shouldBe 2
     }
