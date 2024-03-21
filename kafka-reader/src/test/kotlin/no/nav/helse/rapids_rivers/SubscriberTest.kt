@@ -215,13 +215,18 @@ class SubscriberTest {
         orderListener.count shouldBe 2
     }
 
-    private fun String.asMessage(topic: String = "testTopic", key: String = UUID.randomUUID().toString()) = JsonMessage(
-        json = objectMapper.readTree(this),
-        metadata = EventMetadata(
-            topic = topic,
-            kafkaEvent = KafkaEvent(key, this),
-            opprettet = ZonedDateTime.now(),
-            lest = ZonedDateTime.now()
-        )
-    )
+    private fun String.asMessage(topic: String = "testTopic", key: String = UUID.randomUUID().toString()) =
+        objectMapper.readTree(this).let {
+            JsonMessage(
+                eventName = it["@event_name"].asText(),
+                json = it,
+                metadata = EventMetadata(
+                    topic = topic,
+                    kafkaEvent = KafkaEvent(key, this),
+                    opprettet = ZonedDateTime.now(),
+                    lest = ZonedDateTime.now()
+                )
+            )
+        }
+
 }

@@ -2,9 +2,9 @@ package no.nav.helse.rapids_rivers
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 
-internal const val eventNameField = "@event_name"
-
 abstract class Subscriber {
+    internal fun name() = this::class.simpleName
+
     private val log = KotlinLogging.logger {}
 
     private val subscription by lazy { subscribe() }
@@ -12,11 +12,11 @@ abstract class Subscriber {
     abstract fun subscribe(): Subscription
     abstract fun receive(jsonMessage: JsonMessage)
 
-    fun onMessage(newJsonMessage: JsonMessage) {
-        val message = newJsonMessage.withFields(subscription.knownFields)
+    fun onMessage(jsonMessage: JsonMessage) {
+        val message = jsonMessage.withFields(subscription.knownFields)
 
         subscription.tryAccept(message, ::receive) {
-            log.debug { "Subscriber [${this::class.simpleName}] rejected message ${newJsonMessage.json} due to [${it.explainReason()}]." }
+            log.debug { "Subscriber [${this::class.simpleName}] rejected message ${jsonMessage.json} due to [${it.explainReason()}]." }
         }
     }
 }
@@ -58,7 +58,7 @@ internal data class IgnoreReason(
 
 class Subscription private constructor(private val eventName: String) {
 
-    internal val knownFields = mutableSetOf(eventNameField)
+    internal val knownFields = mutableSetOf<String>()
 
     private val requiredFields: MutableSet<String> = mutableSetOf()
     private val optionalFields: MutableSet<String> = mutableSetOf()
@@ -128,8 +128,8 @@ class Subscription private constructor(private val eventName: String) {
         onAccept: (JsonMessage) -> Unit,
         onIgnore: (IgnoreReason) -> Unit
     ) {
-        if (jsonMessage.json[eventNameField].asText() != eventName) {
-            onIgnore(IgnoreReason.incorrectEvent(jsonMessage.json[eventNameField].asText()))
+        if (jsonMessage.eventName != eventName) {
+            onIgnore(IgnoreReason.incorrectEvent(jsonMessage.eventName))
             return
         }
 

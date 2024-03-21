@@ -37,19 +37,13 @@ class KafkaApplicationIT {
     private val kafkaContainer = KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.2.1"))
     private lateinit var producer: KafkaProducer<String, String>
 
-    private lateinit var testApp: KafkaApplication
-
     private val testClient = TestClient()
 
     @BeforeAll
-    fun setup() = runBlocking<Unit> {
+    fun setup() {
         kafkaContainer.start()
 
         producer = KafkaTestFactory(kafkaContainer).createProducer()
-
-        launch(Dispatchers.Default + Job()) {
-            testApp.start()
-        }
     }
 
     @Test

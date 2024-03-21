@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.prometheus.client.CollectorRegistry
+import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.consumer.OffsetResetStrategy
 import java.net.InetAddress
@@ -12,13 +13,13 @@ import java.util.*
 
 class KafkaApplication internal constructor(
     private val ktor: ApplicationEngine,
-    private val reader: KafkaReader,
-    private val onStartup: () -> Unit = {},
-    private val onShutdown: () -> Unit = {}
+    private val reader: KafkaReader
 ) {
     init {
         Runtime.getRuntime().addShutdownHook(Thread(::shutdownHook))
     }
+
+    private val log = KotlinLogging.logger {}
 
     private val gracePeriod = 5000L
     private val forcefulShutdownTimeout = 30000L
@@ -26,31 +27,27 @@ class KafkaApplication internal constructor(
     suspend fun start() {
         ktor.start(wait = false)
         try {
-            onStartup()
             reader.start()
         } finally {
-            onShutdown()
             log.info { "shutting down ktor, waiting $gracePeriod ms for workers to exit. Forcing shutdown after $forcefulShutdownTimeout ms" }
             ktor.stop(gracePeriod, forcefulShutdownTimeout)
             log.info { "ktor shutdown complete. goodbye." }
         }
     }
 
-    internal fun stop() {
+    internal suspend fun stop() {
         reader.stop()
         ktor.stop(gracePeriod, forcefulShutdownTimeout)
     }
 
     fun isRunning() = reader.isRunning()
 
-    private fun shutdownHook() {
+    private fun shutdownHook() = runBlocking {
         log.info { "received shutdown signal, stopping app" }
         stop()
     }
 
     companion object {
-        private val log = KotlinLogging.logger {}
-
         fun build(config: KafkaApplicationBuilder.() -> Unit): KafkaApplication {
             return KafkaApplicationBuilder().also(config).build()
         }
@@ -130,9 +127,9 @@ class KafkaApplicationBuilder internal constructor() {
                 collectorRegistry = collectorRegistry,
                 isAliveCheck = reader::isRunning,
                 customizeableModule = customizableModule,
-            ),
-            onStartup = startupHook,
-            onShutdown = shutdownHook,
+                onStartup = startupHook,
+                onShutdown = shutdownHook,
+            )
         )
     }
 }

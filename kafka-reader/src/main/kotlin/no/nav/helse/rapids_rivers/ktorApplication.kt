@@ -26,7 +26,9 @@ internal fun setupKtorApplication(
     port: Int = 8080,
     metrics: List<MeterBinder> = emptyList(),
     collectorRegistry: CollectorRegistry = CollectorRegistry.defaultRegistry,
-    customizeableModule: Application.() -> Unit
+    customizeableModule: Application.() -> Unit,
+    onStartup: () -> Unit = {},
+    onShutdown: () -> Unit = {}
 ) = embeddedServer(
     factory = Netty,
     environment = applicationEngineEnvironment {
@@ -35,14 +37,25 @@ internal fun setupKtorApplication(
         }
         module(metaEndpoints(isAliveCheck, collectorRegistry, metrics))
 
-    modules.add(customizeableModule)
-})
+        module(customizeableModule)
+
+        module {
+            environment.monitor.subscribe(ApplicationStarted) {
+                onStartup()
+            }
+
+            environment.monitor.subscribe(ApplicationStopped) {
+                onShutdown()
+            }
+        }
+    }
+)
 
 private fun metaEndpoints(
     isAliveCheck: () -> Boolean,
     collectorRegistry: CollectorRegistry,
     metrics: List<MeterBinder>
-) = fun Application.() {
+): Application.() -> Unit = {
     install(MicrometerMetrics) {
         registry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT, collectorRegistry, Clock.SYSTEM)
         meterBinders = meterBinders + metrics

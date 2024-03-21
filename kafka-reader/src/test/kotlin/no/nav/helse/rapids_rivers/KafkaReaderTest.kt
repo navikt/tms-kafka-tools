@@ -55,8 +55,8 @@ class KafkaReaderTest {
     }
 
     @AfterEach
-    fun stopReaders() {
-        kafkaReaders.forEach(KafkaReader::stop)
+    fun stopReaders() = runBlocking {
+        kafkaReaders.forEach { it.stop() }
         kafkaReaders.clear()
     }
 

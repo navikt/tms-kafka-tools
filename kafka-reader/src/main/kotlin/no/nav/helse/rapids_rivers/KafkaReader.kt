@@ -11,7 +11,7 @@ import java.time.Duration
 import java.time.ZonedDateTime
 import java.util.*
 
-class KafkaReader(
+internal class KafkaReader(
     factory: ConsumerFactory,
     groupId: String,
     private val kafkaTopics: List<String>,
@@ -19,7 +19,7 @@ class KafkaReader(
     consumerProperties: Properties = Properties()
 ): ConsumerRebalanceListener {
 
-    private val scope = CoroutineScope(Dispatchers.IO + Job())
+    private val scope = CoroutineScope(Dispatchers.Default + Job())
     private val job = scope.launch(start = LAZY) { consumeMessages() }
 
     private val log = KotlinLogging.logger {}
@@ -43,7 +43,7 @@ class KafkaReader(
         }
     }
 
-    fun stop() = runBlocking {
+    suspend fun stop() {
         log.info { "stopping rapid" }
 
         job.cancelAndJoin()
@@ -97,19 +97,22 @@ class KafkaReader(
             } catch (e: JsonException) {
                 log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
                 secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
+            } catch (e: MessageFormatException) {
+                log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
+                secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
             }
         }
     }
 
-
-
-
-    private fun consumeMessages() {
+    private suspend fun consumeMessages() {
         var lastException: Exception? = null
         try {
             consumer.subscribe(kafkaTopics, this)
             while (job.isActive) {
-                consumer.poll(Duration.ofSeconds(1)).also {
+
+                withContext(Dispatchers.IO) {
+                    consumer.poll(Duration.ofSeconds(1))
+                }.also {
                     withMDC(pollDiganostics(it)) {
                         onRecords(it)
                     }
@@ -126,19 +129,19 @@ class KafkaReader(
     }
 
     private fun pollDiganostics(records: ConsumerRecords<String, String>) = mapOf(
-        "rapids_poll_id" to "${UUID.randomUUID()}",
-        "rapids_poll_time" to "${ZonedDateTime.now()}",
-        "rapids_poll_count" to "${records.count()}"
+        "kafka_poll_id" to "${UUID.randomUUID()}",
+        "kafka_poll_time" to "${ZonedDateTime.now()}",
+        "kafka_poll_count" to "${records.count()}"
     )
 
     private fun recordDiganostics(record: ConsumerRecord<String, String>) = mapOf(
-        "rapids_record_id" to "${UUID.randomUUID()}",
-        "rapids_record_before_notify_time" to "${ZonedDateTime.now()}",
-        "rapids_record_produced_time" to "${record.timestamp()}",
-        "rapids_record_produced_time_type" to "${record.timestampType()}",
-        "rapids_record_topic" to record.topic(),
-        "rapids_record_partition" to "${record.partition()}",
-        "rapids_record_offset" to "${record.offset()}"
+        "kafka_record_id" to "${UUID.randomUUID()}",
+        "kafka_record_before_notify_time" to "${ZonedDateTime.now()}",
+        "kafka_record_produced_time" to "${record.timestamp()}",
+        "kafka_record_produced_time_type" to "${record.timestampType()}",
+        "kafka_record_topic" to record.topic(),
+        "kafka_record_partition" to "${record.partition()}",
+        "kafka_record_offset" to "${record.offset()}"
     )
 
     private fun TopicPartition.commitSync() {
@@ -155,12 +158,8 @@ class KafkaReader(
             log.info { "stopped consuming messages after receiving stop signal" }
         }
         job.cancel()
-        tryAndLog(consumer::close)
-    }
-
-    private fun tryAndLog(block: () -> Unit) {
         try {
-            block()
+            consumer.close()
         } catch (err: Exception) {
             log.error(err) { err.message }
         }
