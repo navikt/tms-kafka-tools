@@ -3,6 +3,7 @@ package no.nav.tms.kafka.reader
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
+import io.ktor.server.cio.*
 import io.ktor.server.engine.*
 import io.ktor.server.metrics.micrometer.MicrometerMetrics
 import io.ktor.server.netty.*
@@ -30,7 +31,7 @@ internal fun setupKtorApplication(
     onStartup: () -> Unit = {},
     onShutdown: () -> Unit = {}
 ) = embeddedServer(
-    factory = Netty,
+    factory = CIO,
     environment = applicationEngineEnvironment {
         connector {
             this.port = port

@@ -167,7 +167,6 @@ class Subscription private constructor(private val eventName: String) {
         val node = jsonMessage.json[field]
 
         if (node.isMissingOrNull() || node.isContainerNode) {
-            //todo more context?
             return false
         }
 

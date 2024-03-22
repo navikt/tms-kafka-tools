@@ -131,6 +131,7 @@ object KtorDefaults {
 
         val core get() = dependency("ktor-server-core")
         val netty get() = dependency("ktor-server-netty")
+        val cio get() = dependency("ktor-server-cio")
         val defaultHeaders get() = dependency("ktor-server-default-headers")
         val metricsMicrometer get() = dependency("ktor-server-metrics-micrometer")
         val auth get() = dependency("ktor-server-auth")

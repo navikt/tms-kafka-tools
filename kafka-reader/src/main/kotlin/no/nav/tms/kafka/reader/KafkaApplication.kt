@@ -24,7 +24,7 @@ class KafkaApplication internal constructor(
     private val gracePeriod = 5000L
     private val forcefulShutdownTimeout = 30000L
 
-    suspend fun start() {
+    fun start() {
         ktor.start(wait = false)
         try {
             reader.start()
@@ -35,14 +35,14 @@ class KafkaApplication internal constructor(
         }
     }
 
-    internal suspend fun stop() {
+    internal fun stop() {
         reader.stop()
         ktor.stop(gracePeriod, forcefulShutdownTimeout)
     }
 
     fun isRunning() = reader.isRunning()
 
-    private fun shutdownHook() = runBlocking {
+    private fun shutdownHook() {
         log.info { "received shutdown signal, stopping app" }
         stop()
     }

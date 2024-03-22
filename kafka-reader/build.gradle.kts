@@ -22,6 +22,7 @@ dependencies {
     implementation(Kafka.kafka_2_12)
     implementation(Ktor.Server.core)
     implementation(Ktor.Server.netty)
+    implementation(Ktor.Server.cio)
     implementation(Ktor.Server.metricsMicrometer)
     implementation(Prometheus.simpleClient)
     implementation(Prometheus.common)
