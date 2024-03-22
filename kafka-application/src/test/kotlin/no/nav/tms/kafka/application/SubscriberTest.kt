@@ -1,4 +1,4 @@
-package no.nav.tms.kafka.reader
+package no.nav.tms.kafka.application
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.shouldBe

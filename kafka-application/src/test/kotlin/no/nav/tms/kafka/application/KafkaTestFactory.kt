@@ -1,4 +1,4 @@
-package no.nav.tms.kafka.reader
+package no.nav.tms.kafka.application
 
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.admin.AdminClient

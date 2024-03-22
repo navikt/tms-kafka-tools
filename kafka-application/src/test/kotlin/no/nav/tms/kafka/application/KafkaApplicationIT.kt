@@ -1,4 +1,4 @@
-package no.nav.tms.kafka.reader
+package no.nav.tms.kafka.application
 
 import io.kotest.matchers.shouldBe
 import io.ktor.client.*
@@ -9,7 +9,6 @@ import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.producer.KafkaProducer

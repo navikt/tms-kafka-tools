@@ -62,7 +62,7 @@ publishing {
     publications {
         create<MavenPublication>("gpr") {
             groupId = "no.nav.tms.kafka"
-            artifactId = "kafka-reader"
+            artifactId = "kafka-application"
             version = libraryVersion
             from(components["java"])
         }

@@ -1,4 +1,4 @@
-package no.nav.tms.kafka.reader
+package no.nav.tms.kafka.application
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 
@@ -18,41 +18,6 @@ abstract class Subscriber {
         subscription.tryAccept(message, ::receive) {
             log.debug { "Subscriber [${this::class.simpleName}] rejected message ${jsonMessage.json} due to [${it.explainReason()}]." }
         }
-    }
-}
-
-internal data class IgnoreReason(
-    val ignoredEvent: String?,
-    val missingFields: List<String>,
-    val missingValues: Map<String, List<Any>>,
-    val unwantedValues: Map<String, List<Any>>
-) {
-    fun explainReason(): String {
-        return when {
-            ignoredEvent != null -> "not listening for event \"$ignoredEvent\""
-            else -> {
-                listOf(
-                    if (missingFields.isNotEmpty()) "missing required fields [${missingFields.joinToString()}}]" else "",
-                    if (missingValues.isNotEmpty()) "missing required values [${missingValues.describe()}}]" else "",
-                    if (unwantedValues.isNotEmpty()) "contains unwanted values [${unwantedValues.describe()}}]" else "",
-                )
-                    .filter { it.isNotEmpty() }
-                    .joinToString()
-            }
-        }
-    }
-
-    private fun Map<String, List<Any>>.describe() = map {(field, values) ->
-        "\"$field\": ${values.joinToString(prefix = "[\"", postfix = "\"]", separator = "\", \"")}"
-    }
-
-    companion object {
-        fun incorrectEvent(name: String) = IgnoreReason(
-            ignoredEvent = name,
-            missingFields = emptyList(),
-            missingValues = emptyMap(),
-            unwantedValues = emptyMap()
-        )
     }
 }
 
@@ -187,3 +152,38 @@ class Subscription private constructor(private val eventName: String) {
 }
 
 class SubscriptionException(message: String): IllegalArgumentException(message)
+
+internal data class IgnoreReason(
+    val ignoredEvent: String?,
+    val missingFields: List<String>,
+    val missingValues: Map<String, List<Any>>,
+    val unwantedValues: Map<String, List<Any>>
+) {
+    fun explainReason(): String {
+        return when {
+            ignoredEvent != null -> "not listening for event \"$ignoredEvent\""
+            else -> {
+                listOf(
+                    if (missingFields.isNotEmpty()) "missing required fields [${missingFields.joinToString()}}]" else "",
+                    if (missingValues.isNotEmpty()) "missing required values [${missingValues.describe()}}]" else "",
+                    if (unwantedValues.isNotEmpty()) "contains unwanted values [${unwantedValues.describe()}}]" else "",
+                )
+                    .filter { it.isNotEmpty() }
+                    .joinToString()
+            }
+        }
+    }
+
+    private fun Map<String, List<Any>>.describe() = map {(field, values) ->
+        "\"$field\": ${values.joinToString(prefix = "[\"", postfix = "\"]", separator = "\", \"")}"
+    }
+
+    companion object {
+        fun incorrectEvent(name: String) = IgnoreReason(
+            ignoredEvent = name,
+            missingFields = emptyList(),
+            missingValues = emptyMap(),
+            unwantedValues = emptyMap()
+        )
+    }
+}

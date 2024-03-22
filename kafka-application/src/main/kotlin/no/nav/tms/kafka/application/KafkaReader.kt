@@ -1,4 +1,4 @@
-package no.nav.tms.kafka.reader
+package no.nav.tms.kafka.application
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micrometer.core.instrument.binder.kafka.KafkaClientMetrics
@@ -16,7 +16,6 @@ internal class KafkaReader(
     groupId: String,
     private val kafkaTopics: List<String>,
     private val subscribers: List<Subscriber>,
-    consumerProperties: Properties = Properties()
 ): ConsumerRebalanceListener {
 
     private val scope = CoroutineScope(Dispatchers.Default + Job())
@@ -25,7 +24,7 @@ internal class KafkaReader(
     private val log = KotlinLogging.logger {}
     private val secureLog = KotlinLogging.logger("secureLog")
 
-    private val consumer = factory.createConsumer(groupId, consumerProperties)
+    private val consumer = factory.createConsumer(groupId)
 
     private suspend fun notifyMessage(newJsonMessage: JsonMessage) {
         subscribers.forEach { it.onMessage(newJsonMessage) }
@@ -51,15 +50,28 @@ internal class KafkaReader(
         job.cancelAndJoin()
     }
 
-    override fun onPartitionsAssigned(partitions: Collection<TopicPartition>) {
-        if (partitions.isNotEmpty()) {
-            log.info { "partitions assigned: $partitions" }
-        }
-    }
+    private suspend fun consumeMessages() {
+        var lastException: Exception? = null
+        try {
+            consumer.subscribe(kafkaTopics, this)
+            while (job.isActive) {
 
-    override fun onPartitionsRevoked(partitions: Collection<TopicPartition>) {
-        log.info {"partitions revoked: $partitions" }
-        partitions.forEach { it.commitSync() }
+                withContext(Dispatchers.IO) {
+                    consumer.poll(Duration.ofSeconds(1))
+                }.also {
+                    withMDC(pollDiganostics(it)) {
+                        onRecords(it)
+                    }
+                }
+            }
+        } catch (err: WakeupException) {
+            lastException = err
+        } catch (err: Exception) {
+            lastException = err
+            consumer.wakeup()
+        } finally {
+            closeResources(lastException)
+        }
     }
 
     private suspend fun onRecords(records: ConsumerRecords<String, String>) {
@@ -106,30 +118,6 @@ internal class KafkaReader(
         }
     }
 
-    private suspend fun consumeMessages() {
-        var lastException: Exception? = null
-        try {
-            consumer.subscribe(kafkaTopics, this)
-            while (job.isActive) {
-
-                withContext(Dispatchers.IO) {
-                    consumer.poll(Duration.ofSeconds(1))
-                }.also {
-                    withMDC(pollDiganostics(it)) {
-                        onRecords(it)
-                    }
-                }
-            }
-        } catch (err: WakeupException) {
-            lastException = err
-        } catch (err: Exception) {
-            lastException = err
-            consumer.wakeup()
-        } finally {
-            closeResources(lastException)
-        }
-    }
-
     private fun pollDiganostics(records: ConsumerRecords<String, String>) = mapOf(
         "kafka_poll_id" to "${UUID.randomUUID()}",
         "kafka_poll_time" to "${ZonedDateTime.now()}",
@@ -165,6 +153,17 @@ internal class KafkaReader(
         } catch (err: Exception) {
             log.error(err) { err.message }
         }
+    }
+
+    override fun onPartitionsAssigned(partitions: Collection<TopicPartition>) {
+        if (partitions.isNotEmpty()) {
+            log.info { "partitions assigned: $partitions" }
+        }
+    }
+
+    override fun onPartitionsRevoked(partitions: Collection<TopicPartition>) {
+        log.info {"partitions revoked: $partitions" }
+        partitions.forEach { it.commitSync() }
     }
 
     internal fun getMetrics() = listOf(KafkaClientMetrics(consumer))

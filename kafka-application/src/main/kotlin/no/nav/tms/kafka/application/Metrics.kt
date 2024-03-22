@@ -1,4 +1,4 @@
-package no.nav.tms.kafka.reader
+package no.nav.tms.kafka.application
 
 import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.Counter

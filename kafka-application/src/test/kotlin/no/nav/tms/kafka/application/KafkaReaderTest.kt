@@ -1,4 +1,4 @@
-package no.nav.tms.kafka.reader
+package no.nav.tms.kafka.application
 
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.matchers.collections.shouldContainOnly
@@ -34,14 +34,15 @@ class KafkaReaderTest {
 
     private val kafkaReaders: MutableList<KafkaReader> = mutableListOf()
 
-    private val consumerProperties = Properties().apply { put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest") }
-
-
     @BeforeAll
     fun setup() {
         kafkaContainer.start()
 
-        consumerFactory = ConsumerFactory(kafkaTestConfig(kafkaContainer))
+        consumerFactory = ConsumerFactory.init(
+            clientId = "test-app",
+            enableSsl = false,
+            env = mapOf("KAFKA_BROKERS" to kafkaContainer.bootstrapServers)
+        )
 
         val testFactory = KafkaTestFactory(kafkaContainer)
         producer = testFactory.createProducer()
@@ -267,7 +268,7 @@ class KafkaReaderTest {
 
 
     private fun runTestReader(waitUpToSeconds: Long = 10, subscribers: List<Subscriber> = emptyList()): KafkaReader {
-        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), subscribers, consumerProperties)
+        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), subscribers)
 
         kafkaReaders.add(reader)
 
@@ -297,9 +298,4 @@ class KafkaReaderTest {
             }
         return recordMetadata
     }
-
-    private fun kafkaTestConfig(container: KafkaContainer) = KafkaConfig.fromEnv(
-        enableSsl = false,
-        env = mapOf("KAFKA_BROKERS" to container.bootstrapServers)
-    )
 }

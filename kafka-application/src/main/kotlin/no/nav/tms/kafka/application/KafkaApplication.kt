@@ -1,14 +1,10 @@
-package no.nav.tms.kafka.reader
+package no.nav.tms.kafka.application
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.prometheus.client.CollectorRegistry
-import kotlinx.coroutines.runBlocking
-import org.apache.kafka.clients.consumer.ConsumerConfig
-import org.apache.kafka.clients.consumer.OffsetResetStrategy
 import java.net.InetAddress
-import java.time.Duration
 import java.util.*
 
 class KafkaApplication internal constructor(
@@ -74,7 +70,7 @@ class KafkaApplicationBuilder internal constructor() {
 
     private var collectorRegistry: CollectorRegistry = CollectorRegistry.defaultRegistry
 
-    private var readerConfig: KafkaReaderConfig? = null
+    private var readerConfig: KafkaConsumerConfig? = null
 
     fun ktorModule(module: Application.() -> Unit) {
         customizableModule = module
@@ -92,8 +88,8 @@ class KafkaApplicationBuilder internal constructor() {
         this.shutdownHook = shutdownHook
     }
 
-    fun kafkaConfig(config: KafkaConfigBuilder.() -> Unit) {
-        readerConfig = KafkaConfigBuilder()
+    fun kafkaConfig(config: ConsumerConfigBuilder.() -> Unit) {
+        readerConfig = ConsumerConfigBuilder()
             .also(config)
             .build()
     }
@@ -106,15 +102,12 @@ class KafkaApplicationBuilder internal constructor() {
         val config = requireNotNull(readerConfig) { "Kafka configuration must be defined" }
 
         val reader = KafkaReader(
-            factory = ConsumerFactory(config.kafkaConfig),
-            groupId = config.consumerGroupId,
-            consumerProperties = Properties().apply {
-                put(ConsumerConfig.CLIENT_ID_CONFIG, "consumer-${config.instanceId}")
-                put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, config.instanceId)
-                put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, config.autoOffsetResetConfig)
-                put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, config.maxRecords)
-                put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, config.maxIntervalMs)
-            },
+            factory = ConsumerFactory.init(
+                clientId = config.clientId,
+                enableSsl = config.enableSsl,
+                env = config.environment,
+            ),
+            groupId = config.groupId,
             kafkaTopics = config.kafkaTopics,
             subscribers = subscribers
         )
@@ -134,47 +127,42 @@ class KafkaApplicationBuilder internal constructor() {
     }
 }
 
-class KafkaConfigBuilder internal constructor() {
+class ConsumerConfigBuilder internal constructor() {
     private val kafkaTopics: MutableList<String> = mutableListOf()
     fun readTopic(topic: String) = kafkaTopics.add(topic)
     fun readTopics(vararg topics: String) = kafkaTopics.addAll(topics)
+    fun withProperties(config: Properties.() -> Unit) = properties.apply(config)
 
     var groupId: String? = null
-    var resetPolicy: String = OffsetResetStrategy.EARLIEST.name
-    var maxRecords: Int = ConsumerConfig.DEFAULT_MAX_POLL_RECORDS
-    var maxInterval: Duration = Duration.ofSeconds(120L + this.maxRecords)
-
-    var environment: Map<String, String> = System.getenv()
-
     var enableSSL: Boolean = true
+    var environment: Map<String, String> = System.getenv()
+    private val properties = Properties()
 
-    internal fun build(): KafkaReaderConfig {
+    internal fun build(): KafkaConsumerConfig {
         require(kafkaTopics.isNotEmpty()) { "Must supply at least 1 kafka topic from which to read" }
         requireNotNull(groupId) { "Must define groupId" }
 
-        return KafkaReaderConfig(
-            instanceId = generateInstanceId(environment),
+        return KafkaConsumerConfig(
+            clientId = generateClientId(environment),
             kafkaTopics = kafkaTopics,
-            kafkaConfig = KafkaConfig.fromEnv(enableSSL, environment),
-            consumerGroupId = groupId!!,
-            autoOffsetResetConfig = resetPolicy.lowercase(),
-            maxIntervalMs = maxInterval.toMillis().toInt(),
-            maxRecords = maxRecords
+            groupId = groupId!!,
+            enableSsl = enableSSL,
+            environment = environment,
+            properties = properties
         )
     }
 
-    private fun generateInstanceId(env: Map<String, String>): String {
+    private fun generateClientId(env: Map<String, String>): String {
         if (env.containsKey("NAIS_APP_NAME")) return InetAddress.getLocalHost().hostName
         return UUID.randomUUID().toString()
     }
 }
 
-internal class KafkaReaderConfig (
-    val instanceId: String,
+internal class KafkaConsumerConfig(
+    val clientId: String,
+    val groupId: String,
     val kafkaTopics: List<String> = emptyList(),
-    val kafkaConfig: KafkaConfig,
-    val consumerGroupId: String,
-    val autoOffsetResetConfig: String,
-    val maxIntervalMs: Int,
-    val maxRecords: Int
+    val enableSsl: Boolean,
+    val environment: Map<String, String>,
+    val properties: Properties
 )
