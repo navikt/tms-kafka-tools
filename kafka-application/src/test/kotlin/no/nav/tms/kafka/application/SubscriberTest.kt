@@ -265,6 +265,39 @@ class SubscriberTest {
         orderListener.count shouldBe 2
     }
 
+
+    @Test
+    fun `ignores rejected values`() = runBlocking<Unit> {
+        val orderListener = object : Subscriber() {
+            var count = 0
+
+            override fun subscribe() = Subscription.forEvent("order")
+                .withoutValues("color", "blue", "red")
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                count++
+            }
+        }
+
+        """{ "@event_name": "order", "color": "blue" }"""
+            .asMessage()
+            .let { orderListener.onMessage(it) }
+
+        orderListener.count shouldBe 0
+
+        """{ "@event_name": "order", "color": "green" }"""
+            .asMessage()
+            .let { orderListener.onMessage(it) }
+
+        orderListener.count shouldBe 1
+
+        """{ "@event_name": "order", "color": "red" }"""
+            .asMessage()
+            .let { orderListener.onMessage(it) }
+
+        orderListener.count shouldBe 1
+    }
+
     @Test
     fun `allows custom validation`() = runBlocking<Unit> {
         val primeNumberCounter = object : Subscriber() {
@@ -301,6 +334,44 @@ class SubscriberTest {
         }
 
         primeNumberCounter.primes shouldBe 10 // ..23, 29
+    }
+
+    @Test
+    fun `custom validation considers missing field as invalid value`() = runBlocking<Unit> {
+        val orderListener = object : Subscriber() {
+            var rColors = 0
+
+            override fun subscribe() = Subscription.forEvent("order")
+                .withValidation("color") { it.asText().contains("r") }
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                rColors++
+            }
+        }
+
+        """{ "@event_name": "order", "color": "red" }"""
+            .asMessage()
+            .let { orderListener.onMessage(it) }
+
+        orderListener.rColors shouldBe 1
+
+        """{ "@event_name": "order", "color": "blue" }"""
+            .asMessage()
+            .let { orderListener.onMessage(it) }
+
+        orderListener.rColors shouldBe 1
+
+        """{ "@event_name": "order" }""".trimMargin()
+            .asMessage()
+            .let { orderListener.onMessage(it) }
+
+        orderListener.rColors shouldBe 1
+
+        """{ "@event_name": "order", "color": "green" }"""
+            .asMessage()
+            .let { orderListener.onMessage(it) }
+
+        orderListener.rColors shouldBe 2
     }
 
     private fun Int.isPrime(): Boolean {
