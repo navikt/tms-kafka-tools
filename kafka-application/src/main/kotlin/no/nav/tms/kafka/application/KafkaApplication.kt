@@ -109,7 +109,7 @@ class KafkaApplicationBuilder internal constructor() {
             ),
             groupId = config.groupId,
             kafkaTopics = config.kafkaTopics,
-            subscribers = subscribers
+            broadcaster = MessageBroadcaster(subscribers)
         )
 
         return KafkaApplication(

@@ -8,6 +8,7 @@ import org.apache.kafka.clients.consumer.*
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.*
 import java.time.Duration
+import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.*
 import kotlin.time.DurationUnit
@@ -17,7 +18,7 @@ internal class KafkaReader(
     factory: ConsumerFactory,
     groupId: String,
     private val kafkaTopics: List<String>,
-    private val subscribers: List<Subscriber>,
+    private val broadcaster: MessageBroadcaster,
 ): ConsumerRebalanceListener {
 
     private val scope = CoroutineScope(Dispatchers.Default + Job())
@@ -105,7 +106,7 @@ internal class KafkaReader(
         when (record.value()) {
             null -> log.info { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is null (tombstone)" }
             else -> try {
-                notifyMessage(JsonMessage.fromRecord(record))
+                broadcaster.broadcastRecord(record)
             } catch (e: JsonException) {
                 log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
                 secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
@@ -116,28 +117,15 @@ internal class KafkaReader(
         }
     }
 
-    private suspend fun notifyMessage(jsonMessage: JsonMessage) {
-        subscribers.forEach { subscriber ->
-            measureTimedValue {
-                subscriber.onMessage(jsonMessage)
-            }.let { (result, duration) ->
-                Metrics.onMessageCounter.labels(subscriber.name(), jsonMessage.eventName, result.toString())
-                    .inc()
-                Metrics.onMessageHistorgram.labels(subscriber.name(), jsonMessage.eventName, result.toString())
-                    .observe(duration.toDouble(DurationUnit.SECONDS))
-            }
-        }
-    }
-
     private fun pollDiganostics(records: ConsumerRecords<String, String>) = mapOf(
         "kafka_poll_id" to "${UUID.randomUUID()}",
-        "kafka_poll_time" to "${ZonedDateTime.now()}",
+        "kafka_poll_time" to "${nowAtUtc()}",
         "kafka_poll_count" to "${records.count()}"
     )
 
     private fun recordDiganostics(record: ConsumerRecord<String, String>) = mapOf(
         "kafka_record_id" to "${UUID.randomUUID()}",
-        "kafka_record_before_notify_time" to "${ZonedDateTime.now()}",
+        "kafka_record_before_notify_time" to "${nowAtUtc()}",
         "kafka_record_produced_time" to "${record.timestamp()}",
         "kafka_record_produced_time_type" to "${record.timestampType()}",
         "kafka_record_topic" to record.topic(),
@@ -180,4 +168,6 @@ internal class KafkaReader(
     internal fun getMetrics() = listOf(KafkaClientMetrics(consumer))
 
     private fun ConsumerRecord<*, *>.topicPartition() = TopicPartition(topic(), partition())
+
+    private fun nowAtUtc() = ZonedDateTime.now(ZoneId.of("Z"))
 }

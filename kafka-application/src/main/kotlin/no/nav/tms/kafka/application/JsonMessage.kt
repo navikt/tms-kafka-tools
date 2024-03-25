@@ -44,9 +44,38 @@ class JsonMessage internal constructor(
                 metadata = EventMetadata(
                     topic = consumerRecord.topic(),
                     kafkaEvent = KafkaEvent(key = consumerRecord.key(), value = consumerRecord.value()),
-                    opprettet = consumerRecord.timestampZ(),
-                    lest = ZonedDateTime.now(ZoneId.of("Z"))
+                    createdAt = consumerRecord.timestampZ(),
+                    readAt = nowAtUtc()
                 )
+            )
+        }
+
+        fun fromJson(jsonString: String, eventMetadata: EventMetadata?): JsonMessage {
+            val json = try {
+                objectMapper.readTree(jsonString)
+            } catch (e: Exception) {
+                throw JsonException(e.message!!)
+            }
+
+            if (!json.isContainerNode) {
+                throw JsonException("Root-level json object must be container node")
+            }
+
+            if (!json.contains(eventNameField)) {
+                throw MessageFormatException("Field '@event_name' must be present at top level of json object")
+            }
+
+            val metadata = eventMetadata ?: EventMetadata(
+                "unknown_topic",
+                kafkaEvent = KafkaEvent(key = "unknown_key", value = jsonString),
+                createdAt = nowAtUtc(),
+                readAt = nowAtUtc()
+            )
+
+            return JsonMessage(
+                eventName = json["@event_name"].asText(),
+                json = json,
+                metadata = metadata
             )
         }
 
@@ -77,6 +106,8 @@ class JsonMessage internal constructor(
     )
 }
 
+private fun nowAtUtc() = ZonedDateTime.now(ZoneId.of("Z"))
+
 fun JsonNode?.isMissingOrNull() = this == null || isMissingNode || isNull
 
 class JsonException(message: String): IllegalArgumentException(message)
@@ -85,8 +116,8 @@ class MessageFormatException(message: String): IllegalArgumentException(message)
 data class EventMetadata(
     val topic: String,
     val kafkaEvent: KafkaEvent,
-    val opprettet: ZonedDateTime?,
-    val lest: ZonedDateTime
+    val createdAt: ZonedDateTime?,
+    val readAt: ZonedDateTime
 )
 
 data class KafkaEvent(

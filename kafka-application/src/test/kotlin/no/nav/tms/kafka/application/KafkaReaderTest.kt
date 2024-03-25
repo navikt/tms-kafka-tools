@@ -268,7 +268,7 @@ class KafkaReaderTest {
 
 
     private fun runTestReader(waitUpToSeconds: Long = 10, subscribers: List<Subscriber> = emptyList()): KafkaReader {
-        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), subscribers)
+        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), MessageBroadcaster(subscribers))
 
         kafkaReaders.add(reader)
 

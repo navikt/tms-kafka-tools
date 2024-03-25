@@ -394,8 +394,8 @@ class SubscriberTest {
                 metadata = EventMetadata(
                     topic = topic,
                     kafkaEvent = KafkaEvent(key, this),
-                    opprettet = ZonedDateTime.now(),
-                    lest = ZonedDateTime.now()
+                    createdAt = ZonedDateTime.now(),
+                    readAt = ZonedDateTime.now()
                 )
             )
         }
