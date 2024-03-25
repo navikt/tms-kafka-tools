@@ -1,5 +1,6 @@
 package no.nav.tms.kafka.application
 
+import com.fasterxml.jackson.databind.JsonNode
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 abstract class Subscriber {
@@ -42,6 +43,7 @@ class Subscription private constructor(private val eventName: String) {
     private val optionalFields: MutableSet<String> = mutableSetOf()
     private val requiredValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val rejectedValues: MutableMap<String, List<Any>> = mutableMapOf()
+    private val valueValidators: MutableMap<String, (JsonNode) -> Boolean> = mutableMapOf()
 
     fun withFields(vararg fields: String) = also {
         knownFields.addAll(fields)
@@ -75,7 +77,7 @@ class Subscription private constructor(private val eventName: String) {
         requiredValues += field to values.asList()
     }
 
-    fun rejectValue(field: String, value: Any) = also {
+    fun withoutValue(field: String, value: Any) = also {
         if (!value.isPrimitive()) {
             throw SubscriptionException(
                 "Tried to require field \"$field\" not to be value of type ${value::class.simpleName}. Required value must be primitive."
@@ -86,7 +88,7 @@ class Subscription private constructor(private val eventName: String) {
         rejectedValues += field to listOf(value)
     }
 
-    fun rejectValues(field: String, vararg values: Any) = also {
+    fun withoutValues(field: String, vararg values: Any) = also {
         if (values.any { !it.isPrimitive() }) {
             throw SubscriptionException(
                 "Tried to require field \"$field\" not to be a value of incompatible type(s). Required value(s) must be primitive."
@@ -94,6 +96,11 @@ class Subscription private constructor(private val eventName: String) {
         }
         knownFields.add(field)
         rejectedValues += field to values.asList()
+    }
+
+    fun withValidation(field: String, validator: (JsonNode) -> Boolean) = also {
+        knownFields.add(field)
+        valueValidators += field to validator
     }
 
     private fun Any.isPrimitive() = when (this) {
@@ -125,7 +132,21 @@ class Subscription private constructor(private val eventName: String) {
             }
         }
 
-        return if (missingFields.isEmpty() && missingValues.isEmpty() && unwantedValues.isEmpty()) {
+        val invalidValues = valueValidators.map { (field, validator) ->
+            val node = jsonMessage.getOrNull(field)
+
+            if (node == null) {
+                field to null
+            } else if (!validator(node)) {
+                field to node
+            } else {
+                null
+            }
+        }
+            .filterNotNull()
+            .toMap()
+
+        return if (missingFields.isEmpty() && missingValues.isEmpty() && unwantedValues.isEmpty() && invalidValues.isEmpty()) {
             onAccept(jsonMessage)
             null
         } else {
@@ -133,7 +154,8 @@ class Subscription private constructor(private val eventName: String) {
                 ignoredEvent = null,
                 missingFields = missingFields,
                 missingValues = missingValues,
-                unwantedValues = unwantedValues
+                unwantedValues = unwantedValues,
+                invalidValues = invalidValues
             )
         }
     }
@@ -167,7 +189,8 @@ internal data class IgnoreReason(
     val ignoredEvent: String?,
     val missingFields: List<String>,
     val missingValues: Map<String, List<Any>>,
-    val unwantedValues: Map<String, List<Any>>
+    val unwantedValues: Map<String, List<Any>>,
+    val invalidValues: Map<String, JsonNode?>
 ) {
     fun explainReason(): String {
         return when {
@@ -175,8 +198,9 @@ internal data class IgnoreReason(
             else -> {
                 listOf(
                     if (missingFields.isNotEmpty()) "missing required fields [${missingFields.joinToString()}}]" else "",
-                    if (missingValues.isNotEmpty()) "missing required values [${missingValues.describe()}}]" else "",
-                    if (unwantedValues.isNotEmpty()) "contains unwanted values [${unwantedValues.describe()}}]" else "",
+                    if (missingValues.isNotEmpty()) "missing required values [${missingValues.describeField()}}]" else "",
+                    if (unwantedValues.isNotEmpty()) "contains unwanted values [${unwantedValues.describeField()}}]" else "",
+                    if (invalidValues.isNotEmpty()) "contains invalid values [${invalidValues.describeNode()}}]" else "",
                 )
                     .filter { it.isNotEmpty() }
                     .joinToString()
@@ -184,8 +208,12 @@ internal data class IgnoreReason(
         }
     }
 
-    private fun Map<String, List<Any>>.describe() = map {(field, values) ->
+    private fun Map<String, List<Any>>.describeField() = map { (field, values) ->
         "\"$field\": ${values.joinToString(prefix = "[\"", postfix = "\"]", separator = "\", \"")}"
+    }
+
+    private fun Map<String, JsonNode?>.describeNode() = map { (field, value) ->
+        "\"$field\": \"${value?.toString() ?: "<field not present>"}\""
     }
 
     companion object {
@@ -193,7 +221,8 @@ internal data class IgnoreReason(
             ignoredEvent = name,
             missingFields = emptyList(),
             missingValues = emptyMap(),
-            unwantedValues = emptyMap()
+            unwantedValues = emptyMap(),
+            invalidValues = emptyMap()
         )
     }
 }

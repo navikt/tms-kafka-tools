@@ -3,12 +3,6 @@ package no.nav.tms.kafka.application
 import org.slf4j.MDC
 import java.io.Closeable
 
-fun <R> withMDC(keyvalue: Pair<String, String>, block: () -> R): R {
-    return MDC.putCloseable(keyvalue.first, keyvalue.second).use {
-        block()
-    }
-}
-
 suspend fun <R> withMDC(context: Map<String, String>, block: suspend () -> R): R {
     return CloseableMDCContext(context).use {
         block()
