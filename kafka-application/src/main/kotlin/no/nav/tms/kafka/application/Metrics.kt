@@ -10,12 +10,12 @@ object Metrics {
     val onMessageHistorgram = Histogram.build()
         .name("on_kafka_message_seconds")
         .help("Hvor lang det tar for subscriber å prosessere melding i sekunder")
-        .labelNames("subscriber", "event_name")
+        .labelNames("subscriber", "event_name", "result")
         .register(registry)
 
     val onMessageCounter = Counter.build()
         .name("kafka_message_counter")
-        .help("Hvor mange meldinger som er lest inn")
-        .labelNames("rapid", "river", "validated", "event_name")
+        .help("Hvor mange meldinger som er akseptert eller ignorert")
+        .labelNames("subscriber", "event_name", "result")
         .register(registry)
 }

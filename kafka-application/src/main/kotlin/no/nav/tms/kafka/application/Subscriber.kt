@@ -3,22 +3,35 @@ package no.nav.tms.kafka.application
 import io.github.oshai.kotlinlogging.KotlinLogging
 
 abstract class Subscriber {
-    internal fun name() = this::class.simpleName
+    internal fun name() = this::class.simpleName ?: "anonymous-subscriber"
 
     private val log = KotlinLogging.logger {}
+    private val secureLog = KotlinLogging.logger("secureLog")
 
     private val subscription by lazy { subscribe() }
 
     abstract fun subscribe(): Subscription
     abstract suspend fun receive(jsonMessage: JsonMessage)
 
-    suspend fun onMessage(jsonMessage: JsonMessage) {
+    suspend fun onMessage(jsonMessage: JsonMessage): SubscriptionResult {
         val message = jsonMessage.withFields(subscription.knownFields)
 
-        subscription.tryAccept(message, ::receive) {
-            log.debug { "Subscriber [${this::class.simpleName}] rejected message ${jsonMessage.json} due to [${it.explainReason()}]." }
+        val ignoreReason = subscription.tryAccept(message, ::receive)
+
+        return if (ignoreReason == null) {
+            SubscriptionResult.Accepted
+        } else {
+            log.debug { "Subscriber [${name()}] rejected message with name ${message.eventName} due to [${ignoreReason.explainReason()}]." }
+            secureLog.debug { "Subscriber [${name()}] rejected message ${message.json} due to [${ignoreReason.explainReason()}]." }
+            SubscriptionResult.Ignored
         }
     }
+}
+
+enum class SubscriptionResult {
+    Accepted, Ignored;
+
+    override fun toString() = name.lowercase()
 }
 
 class Subscription private constructor(private val eventName: String) {
@@ -90,12 +103,10 @@ class Subscription private constructor(private val eventName: String) {
 
     internal suspend fun tryAccept(
         jsonMessage: JsonMessage,
-        onAccept: suspend (JsonMessage) -> Unit,
-        onIgnore: (IgnoreReason) -> Unit
-    ) {
+        onAccept: suspend (JsonMessage) -> Unit
+    ): IgnoreReason? {
         if (jsonMessage.eventName != eventName) {
-            onIgnore(IgnoreReason.incorrectEvent(jsonMessage.eventName))
-            return
+            return IgnoreReason.incorrectEvent(jsonMessage.eventName)
         }
 
         val presentFields = jsonMessage.json.fields().asSequence().toList().map { it.key }.toSet()
@@ -114,16 +125,15 @@ class Subscription private constructor(private val eventName: String) {
             }
         }
 
-        if (missingFields.isEmpty() && missingValues.isEmpty() && unwantedValues.isEmpty()) {
+        return if (missingFields.isEmpty() && missingValues.isEmpty() && unwantedValues.isEmpty()) {
             onAccept(jsonMessage)
+            null
         } else {
-            onIgnore(
-                IgnoreReason(
-                    ignoredEvent = null,
-                    missingFields = missingFields,
-                    missingValues = missingValues,
-                    unwantedValues = unwantedValues
-                )
+            IgnoreReason(
+                ignoredEvent = null,
+                missingFields = missingFields,
+                missingValues = missingValues,
+                unwantedValues = unwantedValues
             )
         }
     }

@@ -10,6 +10,8 @@ import org.apache.kafka.common.errors.*
 import java.time.Duration
 import java.time.ZonedDateTime
 import java.util.*
+import kotlin.time.DurationUnit
+import kotlin.time.measureTimedValue
 
 internal class KafkaReader(
     factory: ConsumerFactory,
@@ -25,10 +27,6 @@ internal class KafkaReader(
     private val secureLog = KotlinLogging.logger("secureLog")
 
     private val consumer = factory.createConsumer(groupId)
-
-    private suspend fun notifyMessage(newJsonMessage: JsonMessage) {
-        subscribers.forEach { it.onMessage(newJsonMessage) }
-    }
 
     fun isRunning() = job.isActive
 
@@ -114,6 +112,19 @@ internal class KafkaReader(
             } catch (e: MessageFormatException) {
                 log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
                 secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
+            }
+        }
+    }
+
+    private suspend fun notifyMessage(jsonMessage: JsonMessage) {
+        subscribers.forEach { subscriber ->
+            measureTimedValue {
+                subscriber.onMessage(jsonMessage)
+            }.let { (result, duration) ->
+                Metrics.onMessageCounter.labels(subscriber.name(), jsonMessage.eventName, result.toString())
+                    .inc()
+                Metrics.onMessageHistorgram.labels(subscriber.name(), jsonMessage.eventName, result.toString())
+                    .observe(duration.toDouble(DurationUnit.SECONDS))
             }
         }
     }
