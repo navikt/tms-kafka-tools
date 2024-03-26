@@ -33,6 +33,8 @@ class MessageBroadcaster(
     }
 }
 
+class MessageException(message: String): IllegalArgumentException(message)
+
 private object Metrics {
     private val registry = CollectorRegistry.defaultRegistry
 

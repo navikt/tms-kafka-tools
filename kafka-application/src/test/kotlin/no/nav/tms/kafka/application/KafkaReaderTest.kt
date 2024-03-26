@@ -2,6 +2,7 @@ package no.nav.tms.kafka.application
 
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.matchers.collections.shouldContainOnly
+import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.*
 import org.apache.kafka.clients.admin.AdminClient
@@ -104,7 +105,7 @@ class KafkaReaderTest {
     }
 
     @Test
-    fun `in case of exception, the offset committed is the erroneous record`() {
+    fun `in case of unexpected exception, the offset committed is the erroneous record`() {
         val offsets = (0..100).map {
             producer.send(ProducerRecord(
                 testTopic,
@@ -148,6 +149,58 @@ class KafkaReaderTest {
             ?: fail { "was not able to fetch committed offset for consumer $groupId" }
 
         expectedOffset shouldBe actualOffset.offset()
+    }
+
+    @Test
+    fun `in case of MessageException, processing continues `() {
+        val offsets = (0..100).map {
+            producer.send(ProducerRecord(
+                testTopic,
+                UUID.randomUUID().toString(),
+                """{"@event_name": "offset-test", "index": $it}""")
+            )
+                .get()
+                .offset()
+        }
+
+        val failOnMessage = 50
+        val failingOffset = offsets[50]
+        var readFailedMessage = false
+        var readFinalMessage = false
+
+        val failingSubscriber = object : Subscriber() {
+            override fun subscribe() = Subscription.forEvent("offset-test")
+                .withFields("index")
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                val index = jsonMessage["index"].asInt()
+
+                if (index == failOnMessage) {
+                    readFailedMessage = true
+                    throw MessageException("a known exception occurred")
+                } else if (index == 100) {
+                    readFinalMessage = true
+                }
+            }
+        }
+
+        runTestReader(waitUpToSeconds = 0, subscribers = listOf(failingSubscriber))
+
+        await("wait until the failed message has been read")
+            .atMost(20, TimeUnit.SECONDS)
+            .until { readFailedMessage }
+        await("wait until the kafkaReader stops")
+            .atMost(20, TimeUnit.SECONDS)
+            .until { readFinalMessage }
+
+        val actualOffset = adminClient
+            .listConsumerGroupOffsets(groupId)
+            ?.partitionsToOffsetAndMetadata()
+            ?.get()
+            ?.getValue(TopicPartition(testTopic, 0))
+            ?: fail { "was not able to fetch committed offset for consumer $groupId" }
+
+        actualOffset.offset() shouldBeGreaterThan failingOffset
     }
 
     @Test

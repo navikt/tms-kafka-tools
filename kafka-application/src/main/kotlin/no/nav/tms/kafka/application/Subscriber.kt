@@ -2,6 +2,7 @@ package no.nav.tms.kafka.application
 
 import com.fasterxml.jackson.databind.JsonNode
 import io.github.oshai.kotlinlogging.KotlinLogging
+import no.nav.tms.kafka.application.MessageStatus.*
 
 abstract class Subscriber {
     internal fun name() = this::class.simpleName ?: "anonymous-subscriber"
@@ -14,23 +15,42 @@ abstract class Subscriber {
     abstract fun subscribe(): Subscription
     abstract suspend fun receive(jsonMessage: JsonMessage)
 
-    suspend fun onMessage(jsonMessage: JsonMessage): SubscriptionResult {
+    suspend fun onMessage(jsonMessage: JsonMessage): MessageStatus {
         val message = jsonMessage.withFields(subscription.knownFields)
 
-        val ignoreReason = subscription.tryAccept(message, ::receive)
+        val result = subscription.tryAccept(message, ::receive)
 
-        return if (ignoreReason == null) {
-            SubscriptionResult.Accepted
-        } else {
-            log.debug { "Subscriber [${name()}] rejected message with name ${message.eventName} due to [${ignoreReason.explainReason()}]." }
-            secureLog.debug { "Subscriber [${name()}] rejected message ${message.json} due to [${ignoreReason.explainReason()}]." }
-            SubscriptionResult.Ignored
+        when (result.status) {
+            Failed -> {
+                log.warn { "Subscriber [${name()}] received failing message with name ${message.eventName}.]." }
+                secureLog.warn { "Subscriber [${name()}] received failing message ${message.json} due to [${result.reason}]." }
+            }
+            Ignored -> {
+                log.debug { "Subscriber [${name()}] ignored message with name ${message.eventName}." }
+                secureLog.debug { "Subscriber [${name()}] rejected message ${message.json} due to [${result.reason}]." }
+            }
+            Accepted -> {
+                log.debug { "Subscriber [${name()}] accepted message with name ${message.eventName}." }
+            }
         }
+
+        return result.status
     }
 }
 
-enum class SubscriptionResult {
-    Accepted, Ignored;
+internal data class SubscriberResult(
+    val status: MessageStatus,
+    val reason: String?
+) {
+    companion object {
+        fun failed(e: MessageException) = SubscriberResult(Failed, e.message)
+        fun ignored(reason: IgnoreReason) = SubscriberResult(Ignored, reason.explainReason())
+        fun accepted() = SubscriberResult(Accepted, null)
+    }
+}
+
+enum class MessageStatus {
+    Accepted, Ignored, Failed;
 
     override fun toString() = name.lowercase()
 }
@@ -111,9 +131,10 @@ class Subscription private constructor(private val eventName: String) {
     internal suspend fun tryAccept(
         jsonMessage: JsonMessage,
         onAccept: suspend (JsonMessage) -> Unit
-    ): IgnoreReason? {
+    ): SubscriberResult {
         if (jsonMessage.eventName != eventName) {
             return IgnoreReason.incorrectEvent(jsonMessage.eventName)
+                .let(SubscriberResult::ignored)
         }
 
         val presentFields = jsonMessage.json.fields().asSequence().toList().map { it.key }.toSet()
@@ -150,17 +171,21 @@ class Subscription private constructor(private val eventName: String) {
             .filterNotNull()
             .toMap()
 
-        return if (missingFields.isEmpty() && missingValues.isEmpty() && unwantedValues.isEmpty() && invalidValues.isEmpty()) {
-            onAccept(jsonMessage)
-            null
-        } else {
-            IgnoreReason(
+        if (missingFields.isNotEmpty() || missingValues.isNotEmpty() || unwantedValues.isNotEmpty() || invalidValues.isNotEmpty()) {
+            return IgnoreReason(
                 ignoredEvent = null,
                 missingFields = missingFields,
                 missingValues = missingValues,
                 unwantedValues = unwantedValues,
                 invalidValues = invalidValues
-            )
+            ).let(SubscriberResult::ignored)
+        }
+
+        return try {
+            onAccept(jsonMessage)
+            SubscriberResult.accepted()
+        } catch (e: MessageException) {
+            SubscriberResult.failed(e)
         }
     }
 
