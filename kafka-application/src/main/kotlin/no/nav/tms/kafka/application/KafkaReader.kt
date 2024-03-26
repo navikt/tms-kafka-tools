@@ -11,14 +11,12 @@ import java.time.Duration
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.*
-import kotlin.time.DurationUnit
-import kotlin.time.measureTimedValue
 
 internal class KafkaReader(
     factory: ConsumerFactory,
     groupId: String,
     private val kafkaTopics: List<String>,
-    private val broadcaster: MessageBroadcaster,
+    private val broadcaster: RecordBroadcaster,
 ): ConsumerRebalanceListener {
 
     private val scope = CoroutineScope(Dispatchers.Default + Job())

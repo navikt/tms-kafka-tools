@@ -3,22 +3,17 @@ package no.nav.tms.kafka.application
 import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.Counter
 import io.prometheus.client.Histogram
+import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import kotlin.time.DurationUnit
 import kotlin.time.measureTimedValue
 
-class MessageBroadcaster(
+internal class RecordBroadcaster(
     private val subscribers: List<Subscriber>
 ) {
     suspend fun broadcastRecord(record: ConsumerRecord<String, String>) {
-        broadcastMessage(JsonMessage.fromRecord(record))
-    }
+        val jsonMessage = JsonMessage.fromRecord(record)
 
-    suspend fun broadcastJson(jsonString: String, metadata: EventMetadata? = null) {
-        broadcastMessage(JsonMessage.fromJson(jsonString, metadata))
-    }
-
-    private suspend fun broadcastMessage(jsonMessage: JsonMessage) {
         subscribers.forEach { subscriber ->
             measureTimedValue {
                 subscriber.onMessage(jsonMessage)
@@ -28,6 +23,27 @@ class MessageBroadcaster(
 
                 Metrics.onMessageHistorgram.labels(subscriber.name(), jsonMessage.eventName, result.toString())
                     .observe(duration.toDouble(DurationUnit.SECONDS))
+            }
+        }
+    }
+}
+
+// For use in tests in dependent projects
+class MessageBroadcaster(
+    private val subscribers: List<Subscriber>
+) {
+    fun broadcastRecord(record: ConsumerRecord<String, String>) {
+        broadcastMessage(JsonMessage.fromRecord(record))
+    }
+
+    fun broadcastJson(jsonString: String, metadata: EventMetadata? = null) {
+        broadcastMessage(JsonMessage.fromJson(jsonString, metadata))
+    }
+
+    private fun broadcastMessage(jsonMessage: JsonMessage) {
+        subscribers.forEach { subscriber ->
+            runBlocking {
+                subscriber.onMessage(jsonMessage)
             }
         }
     }

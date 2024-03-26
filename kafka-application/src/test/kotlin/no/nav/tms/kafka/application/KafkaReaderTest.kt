@@ -6,7 +6,6 @@ import io.kotest.matchers.longs.shouldBeGreaterThan
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.*
 import org.apache.kafka.clients.admin.AdminClient
-import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.clients.producer.RecordMetadata
@@ -321,7 +320,7 @@ class KafkaReaderTest {
 
 
     private fun runTestReader(waitUpToSeconds: Long = 10, subscribers: List<Subscriber> = emptyList()): KafkaReader {
-        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), MessageBroadcaster(subscribers))
+        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), RecordBroadcaster(subscribers))
 
         kafkaReaders.add(reader)
 
