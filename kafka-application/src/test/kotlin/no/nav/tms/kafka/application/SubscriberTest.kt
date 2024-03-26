@@ -304,7 +304,7 @@ class SubscriberTest {
             var primes = 0
 
             override fun subscribe() = Subscription.forEvent("count")
-                .withValidation("number") { it.asInt().isPrime() }
+                .withFilter("number") { it.asInt().isPrime() }
 
             override suspend fun receive(jsonMessage: JsonMessage) {
                 primes++
@@ -342,7 +342,7 @@ class SubscriberTest {
             var rColors = 0
 
             override fun subscribe() = Subscription.forEvent("order")
-                .withValidation("color") { it.asText().contains("r") }
+                .withFilter("color") { it.asText().contains("r") }
 
             override suspend fun receive(jsonMessage: JsonMessage) {
                 rColors++

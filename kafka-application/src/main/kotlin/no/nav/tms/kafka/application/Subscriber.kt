@@ -43,7 +43,7 @@ class Subscription private constructor(private val eventName: String) {
     private val optionalFields: MutableSet<String> = mutableSetOf()
     private val requiredValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val rejectedValues: MutableMap<String, List<Any>> = mutableMapOf()
-    private val valueValidators: MutableMap<String, (JsonNode) -> Boolean> = mutableMapOf()
+    private val valueFilters: MutableMap<String, (JsonNode) -> Boolean> = mutableMapOf()
 
     fun withFields(vararg fields: String) = also {
         knownFields.addAll(fields)
@@ -98,9 +98,9 @@ class Subscription private constructor(private val eventName: String) {
         rejectedValues += field to values.asList()
     }
 
-    fun withValidation(field: String, validator: (JsonNode) -> Boolean) = also {
+    fun withFilter(field: String, predicate: (JsonNode) -> Boolean) = also {
         knownFields.add(field)
-        valueValidators += field to validator
+        valueFilters += field to predicate
     }
 
     private fun Any.isPrimitive() = when (this) {
@@ -132,15 +132,19 @@ class Subscription private constructor(private val eventName: String) {
             }
         }
 
-        val invalidValues = valueValidators.map { (field, validator) ->
+        val invalidValues = valueFilters.map { (field, validator) ->
             val node = jsonMessage.getOrNull(field)
 
-            if (node == null) {
-                field to null
-            } else if (!validator(node)) {
+            try {
+                if (node == null) {
+                    field to null
+                } else if (!validator(node)) {
+                    field to node
+                } else {
+                    null
+                }
+            }catch (e: Exception) {
                 field to node
-            } else {
-                null
             }
         }
             .filterNotNull()
