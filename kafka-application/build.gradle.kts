@@ -25,7 +25,7 @@ dependencies {
     implementation(Ktor.Server.metricsMicrometer)
     implementation(Prometheus.simpleClient)
     implementation(Prometheus.common)
-    testImplementation(Awaitiliy.awaitility)
+    testImplementation(Awaitility.awaitility)
     testImplementation(Junit.api)
     testImplementation(Junit.engine)
     testImplementation(KafkaTestContainers.kafka)
