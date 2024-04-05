@@ -80,6 +80,10 @@ class KafkaApplicationBuilder internal constructor() {
         subscribers.add(initializer())
     }
 
+    fun subscribers(vararg subscriber: Subscriber) {
+        subscribers.addAll(subscriber)
+    }
+
     fun onStartup(startupHook: () -> Unit) {
         this.startupHook = startupHook
     }

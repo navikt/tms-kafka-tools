@@ -103,15 +103,7 @@ internal class KafkaReader(
     private suspend fun onRecord(record: ConsumerRecord<String, String>) = withMDC(recordDiganostics(record)) {
         when (record.value()) {
             null -> log.info { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is null (tombstone)" }
-            else -> try {
-                broadcaster.broadcastRecord(record)
-            } catch (e: JsonException) {
-                log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
-                secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
-            } catch (e: MessageFormatException) {
-                log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
-                secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
-            }
+            else -> broadcaster.broadcastRecord(record)
         }
     }
 

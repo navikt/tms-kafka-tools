@@ -32,7 +32,6 @@ object Junit: DependencyGroup {
 
     val api get() = dependency("junit-jupiter-api")
     val engine get() = dependency("junit-jupiter-engine")
-    val params get() = dependency("junit-jupiter-params")
 }
 
 object KafkaTestContainers: DependencyGroup {
@@ -46,16 +45,13 @@ object Kafka: DependencyGroup {
     override val groupId get() = "org.apache.kafka"
     override val version get() = "3.5.0"
 
-    val clients get() = dependency("kafka-clients")
     val kafka_2_12 get() = dependency("kafka_2.12")
-    val streams get() = dependency("kafka-streams")
 }
 
 object Kotest: DependencyGroup {
     override val groupId get() = "io.kotest"
     override val version get() = "5.6.1"
 
-    val runnerJunit5 get() = dependency("kotest-runner-junit5")
     val assertionsCore get() = dependency("kotest-assertions-core")
     val extensions get() = dependency("kotest-extensions")
 }
@@ -95,7 +91,6 @@ object Ktor {
         override val groupId get() = Ktor.groupId
         override val version get() = Ktor.version
 
-        val clientMock get() = dependency("ktor-client-mock")
         val serverTestHost get() = dependency("ktor-server-test-host")
     }
 }
@@ -112,8 +107,5 @@ object Prometheus: DependencyGroup {
     override val groupId get() = "io.prometheus"
 
     val common get() = dependency("simpleclient_common")
-    val hotspot get() = dependency("simpleclient_hotspot")
-    val httpServer get() = dependency("simpleclient_httpserver")
-    val logback get() = dependency("simpleclient_logback")
     val simpleClient get() = dependency("simpleclient")
 }
