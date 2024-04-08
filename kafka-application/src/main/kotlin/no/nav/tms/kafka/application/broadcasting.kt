@@ -26,7 +26,7 @@ internal class RecordBroadcaster(
             log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
             secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
         } catch (e: MessageFormatException) {
-            Metrics.onValidEventCounter.labels(record.topic(), "missing_name").inc()
+            Metrics.onInvalidEventCounter.labels(record.topic(), "missing_name").inc()
             log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
             secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
         }
