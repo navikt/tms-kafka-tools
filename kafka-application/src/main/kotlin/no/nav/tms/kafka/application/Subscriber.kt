@@ -22,15 +22,15 @@ abstract class Subscriber {
 
         when (result.status) {
             Failed -> {
-                log.warn { "Subscriber [${name()}] received failing message with name ${message.eventName}.]." }
-                secureLog.warn { "Subscriber [${name()}] received failing message ${message.json} due to [${result.reason}]." }
+                log.warn { "Subscriber [${name()}] received failing message with name [${message.eventName}]." }
+                secureLog.warn { "Subscriber [${name()}] received failing message [${message.json}] due to [${result.reason}]." }
             }
             Ignored -> {
-                log.debug { "Subscriber [${name()}] ignored message with name ${message.eventName}." }
-                secureLog.debug { "Subscriber [${name()}] rejected message ${message.json} due to [${result.reason}]." }
+                log.debug { "Subscriber [${name()}] ignored message with name [${message.eventName}]." }
+                secureLog.debug { "Subscriber [${name()}] rejected message [${message.json}] due to [${result.reason}]." }
             }
             Accepted -> {
-                log.debug { "Subscriber [${name()}] accepted message with name ${message.eventName}." }
+                log.debug { "Subscriber [${name()}] accepted message with name [${message.eventName}]." }
             }
         }
 

@@ -23,12 +23,12 @@ internal class RecordBroadcaster(
             }
         } catch (e: JsonException) {
             Metrics.onInvalidEventCounter.labels(record.topic(), "invalid_json").inc()
-            log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
-            secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because value is not valid json" }
+            log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because value is not valid json" }
+            secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because value is not valid json" }
         } catch (e: MessageFormatException) {
             Metrics.onInvalidEventCounter.labels(record.topic(), "missing_name").inc()
-            log.warn { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
-            secureLog.warn(e) { "ignoring record with offset ${record.offset()} in partition ${record.partition()} because it does not contain field '@event_name'" }
+            log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name'" }
+            secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name'" }
         }
     }
 
