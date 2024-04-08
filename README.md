@@ -1,120 +1,126 @@
-[![](https://jitpack.io/v/navikt/rapids-and-rivers.svg)](https://jitpack.io/#navikt/rapids-and-rivers)
+# Team min-side kafka tools
 
-# Rapids and rivers
+Bibliotek for å forenkle lesing fra- eller produsering til kafka
 
-Bibliotek for enkelt å kunne lage mikrotjenester som bruker konseptet rapids and rivers til [@fredgeorge](https://github.com/fredgeorge/). For mer info kan man se denne videoen https://vimeo.com/79866979
+## kafka-application
 
-## Konsepter
+Setter opp en ktor app som leser fra kafka ut av boksen. 
 
-- Alle publiserer på rapid. Kan lese fra flere topics, men publiserer kun på rapid-topic
-- Rivers filtrerer meldinger etter hvilke kriterier de har
-- `isalive` er true så snart rapids connection er startet
-- `isready` er true så snart `onStartup`-lytterne er ferdige. KafkaRapid vil ikke begynne å polle meldinger før etter 
-onStartup-lytterne er ferdige, og vil dermed ikke bli assignet partisjoner av brokerne.
-- Rivers vil kun få packets i `onPacket` når `MessageProblems` er fri for feilmeldinger (errors og severe)
-- Rivers kan bruke `require*()`-funksjoner for å akkumulere errors i et `MessageProblems`-objekt som sendes til `onError`
-- Rivers kan bruke `demand*()`-funksjoner for å stoppe parsing ved feil. Exception sendes til `onSevere`
+En kafka-application basert på dette biblioteket leser meldinger fra kafka og videreformidler godkjente meldinger til et
+vilkårlig `Subscriber`-objekter. Hvilke Subscribere som behandler hvilke eventer bestemmes av hver enkel Subscribers `Subscription`.
 
-Man kan bruke en kombinasjon av `demand*()` og `require*()`. For eksempel om alle meldingene har et `@event_name`, så kan man bruke 
-`demandValue("@event_name", "my_event")` for å avbryte parsing når event-navnet ikke er som forventet. Dersom man har alle andre former
-for validering med `require*()`, så kan man f.eks. logge innholdet i pakken i `onError` i lag med en feilmelding som sier noe sånn som `klarte ikke å parse my_event`.
-Dersom man ikke benytter seg av `demand*()` så er det umulig å vite i `onError()` hvorvidt `@event_name` var forventet verdi eller ikke, og logging vil dermed ende opp med å spamme
-med alle meldinger på rapiden som riveren ikke forstår.
+### Kafka-melding
 
-### Kjøreregler
+For at et kafka-event skal være godkjent må det oppfylle følgende krav:
 
-#### Appen min har database
+ - Innholdet i kafka-eventet er en json-string (I.E. ingen AVRO eller andre binærformat).
+ - Eventet har et felt `@event_name` definert på toppen av json-objektet.
+ - Eventets nøkkel har ingen meningsbærende informasjon.
 
-- Kjør migreringer i `onStartup`
-- Bruk rollout strategy `Recreate`. Ellers vil du ha én pod som leser meldinger og skriver til db, mens den andre holder på med migreringer 
+Eksempel på gyldig innhold for event:
 
-#### Appen min har rest-api (og database)
+```json
+{
+  "@event_name": "orderConfirmed",
+  "item": {
+    "id": 123,
+    "name": "Apple"
+  },
+  "amount": 10
+}
+```
 
-- Samme kjøreregler som over, bare at du vil få nedetid på api-et
-- Rest-api-delen av appen bør skilles ut som egen app som har readonly-connection mot databasen. Dersom migreringene er 
-bakover-kompatible så kan man unngå nedetid, og man kan migrere en "live" database
+### Subscriber og Subscription
 
-### Appen min består bare av kafka
+En Subscriber konsumerer kafka-meldinger med innhold som matcher dens Subscription. En Subscription er et sett med regler
+som definerer et gyldig json-objekt i sin kontekst, og garanterer at kun slike eventer blir prosessert av denne Subscriberen.
 
-- Tut og kjør. Rollout strategy `RollingUpdate` vil fungere helt utmerket
+Følgende regler kan brukes i Subscription:
 
-## Quick start 
+ - Hvilken type event som skal leses basert på feltet `@event_name`. En Subscriber kan kun lytte på én type eventer.
+ - Hvilke felt skal finnes på toppnivå av json.
+ - Hvilke verdier på disse feltene som er godkjente eller ugyldige.
+ - Egendefinert filter på json-node. 
+
+Felt som finnes i det originale eventet fra kafka, men som ikke nevnes i en subscription, blir ignorert.
+
+Eksempel på oppsett av Subscriber:
+
+```kotlin
+class OrderConfimedSubscriber : Subscriber() {
+    override fun subscription() = Subscription.forEvent("orderConfirmed")
+        .withFields("item")
+        .withoutValue("amount", 0)
+    
+    val itemIdsSeen = mutableSetOf<Long>()
+    var totalOrdered = 0
+
+    override suspend fun receive(jsonMessage: JsonMessage) {
+        itemsOrdered += jsonMessage["amount"].asInt()
+        itemsSeen.add(jsonMessage["item"]["id"].asLong())
+    }
+}
+```
+
+### Top-level oppsett av kafka-application
+
+Bruk av biblioteket forutsetter at appen kjører på NAIS med 
+kafka enabled i yaml, eller at følgende miljøvariabler er konfigurert manuelt:
+
+ - `KAFKA_BROKERS` (Url til kakfka bootstrap-server. Helt nødvendig i alle tilfeller)
+ - `KAFKA_TRUSTSTORE_PATH` og `KAFKA_CREDSTORE_PASSWORD` (Auentiseringsinfo. Påkrevd som default. Ikke nødvendig dersom en skrur av ssl for eksempel ved lokal kjøring)
+
+Biblioteket krever ytterligere to ting for å kjøre:
+
+ - Minst ett kafka topic å lytte på
+ - Group id, som brukes for å konsumere topic.
+
+Eksempel på minimumsoppsett for en app som lytter på meldinger på topic `test-topic-v1`. 
 
 ```kotlin
 fun main() {
-    val env = System.getenv()
-
-    val dataSourceBuilder = DataSourceBuilder(env)
-    val dataSource = dataSourceBuilder.getDataSource()
-
-    RapidApplication.create(env).apply {
-        MyCoolApp(this, MyDao(dataSource))
-    }.apply {
-        register(object : RapidsConnection.StatusListener {
-            override fun onStartup(rapidsConnection: RapidsConnection) {
-                // migrate database before consuming messages, but after rapids have started (and isalive returns OK)
-                dataSourceBuilder.migrate()
-            }
-        })
+    KafkaApplication.build {
+        kafkaConfig {
+            groupId = "group-1"
+            readTopic("test-topic-v1")
+        }
     }.start()
 }
-
-internal class MyCoolApp(
-    rapidsConnection: RapidsConnection,
-    private val myDao: MyDao
-) : River.PacketListener {
-
-    init {
-        River(rapidsConnection).apply {
-            validate { it.demandValue("@event_name", "my_event") }
-            validate { it.requireKey("a_required_key") }
-            // nested objects can be chained using "."
-            validate { it.requireValue("nested.key", "works_as_well") }
-        }.register(this)
-    }
-   
-    override fun onError(problems: MessageProblems, context: MessageContext) {
-        /* fordi vi bruker demandValue() på event_name kan vi trygt anta at meldingen
-           er "my_event", og at det er minst én av de ulike require*() som har feilet */   
-    }
-
-    override fun onPacket(packet: JsonMessage, context: MessageContext) {
-        println(packet["a_required_key"].asText())
-        // nested objects can be chained using "."
-        println(packet["nested.key"].asText())
-    }
-}    
 ```
 
-### Forutsetninger/defaults
+Mer praktisk eksempel på app som lytter på topic `order-topic-v1` og behandler bestemte eventer.
 
-- Servicebruker mountes inn på `/var/run/secrets/nais.io/service_user`
-- Bootstrap servers angis ved miljøvariabel `KAFKA_BOOTSTRAP_SERVERS`
-- Consumer group angis med miljøvariabel `KAFKA_CONSUMER_GROUP_ID`
-- Rapid topic angis med miljøvariabel `KAFKA_RAPID_TOPIC`
-- Rivers angis med miljøvariabel `KAFKA_EXTRA_TOPIC`(Kommaseparert liste hvis flere rivers.)
-- For å bruke SSL-autentisering (Aiven) må man angi miljøvariablene `KAFKA_KEYSTORE_PATH` og `KAFKA_KEYSTORE_PASSWORD`
+```kotlin
+fun main() {
+    KafkaApplication.build {
+        kafkaConfig {
+            groupId = "my-app-001"
+            readTopic("order-topic-v1")
+        }
+        
+        ktorModule {
+            someApi()
+        }
+        
+        subsriber {
+            OrderConfirmedSubscriber()
+        }
 
-Rapids-biblioteket bundler egen `logback.xml` så det trengs ikke spesifiseres i mikrotjenestene.
-Den bundlede `logback.xml` har konfigurasjon for secureLogs (men husk å enable secureLogs i nais.yaml!), tilgjengelig med:
+        onStartup {
+            startBatchJob()
+        }
+
+        onShutdown {
+            gracefullyStopBatchJob()
+        }
+    }.start()
+}
 ```
-LoggerFactory.getLogger("tjenestekall")
-```
 
-# Releasing 
+### Feilhåndtering
 
-Alle commits på `main` gren vil lage en Github release og bygge en ny artifakt mot Jitpack. 
+Feil som oppstår under lesing fra kafka behandles ulikt basert på årsak:
 
-Versjonen vil har formatet:  
-
-```YYYYmmDDMMss.<git sha>```
-
-For å "skippe" en release kan en legge til melding `[ci skip]` på git commit melding. 
-
-# Henvendelser
-
-Spørsmål knyttet til koden eller prosjektet kan stilles som issues her på GitHub.
-
-## For NAV-ansatte
-
-Interne henvendelser kan sendes via Slack i kanalen #rapids-and-rivers.
+ - Hvis det ligger inhhold på feil format (E.G. feilaktig json eller binærdata) på kafka-topicet vil appen hoppe over disse eventene. 
+ - Hvis en Subscriber kaster et MessageException vil dette logges og appen lese videre.
+ - Hvis det kastes en uventet exception vil appen stoppe videre lesing fra kafka. 

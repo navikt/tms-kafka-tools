@@ -1,114 +1,21 @@
-import org.gradle.api.tasks.testing.logging.TestExceptionFormat
-
-val jvmTarget = 21
-
-val ktorVersion = "2.3.8"
-val kafkaVersion = "3.6.1"
-val micrometerRegistryPrometheusVersion = "1.12.2"
-val junitJupiterVersion = "5.10.2"
-val jacksonVersion = "2.16.1"
-val logbackClassicVersion = "1.4.14"
-val logbackEncoderVersion = "7.4"
-val awaitilityVersion = "4.2.0"
-val kafkaTestcontainerVersion = "1.19.4"
-
-group = "com.github.navikt"
-version = properties["version"] ?: "local-build"
-
 plugins {
-    kotlin("jvm") version "1.9.22"
-    id("java")
-    id("maven-publish")
+    kotlin("jvm").version(Kotlin.version)
 }
-
-dependencies {
-    api("ch.qos.logback:logback-classic:$logbackClassicVersion")
-    api("net.logstash.logback:logstash-logback-encoder:$logbackEncoderVersion")
-
-    api("io.ktor:ktor-server-cio:$ktorVersion")
-
-    api("org.apache.kafka:kafka-clients:$kafkaVersion")
-
-    api("com.fasterxml.jackson.module:jackson-module-kotlin:$jacksonVersion")
-    api("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:$jacksonVersion")
-
-    api("io.ktor:ktor-server-metrics-micrometer:$ktorVersion")
-    api("io.micrometer:micrometer-registry-prometheus:$micrometerRegistryPrometheusVersion")
-
-    testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-
-    testImplementation("org.testcontainers:kafka:$kafkaTestcontainerVersion")
-    testImplementation("org.awaitility:awaitility:$awaitilityVersion")
-}
-
-java {
-    withSourcesJar()
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+    kotlinOptions.jvmTarget = "17"
 }
 
 tasks {
-    java {
-        toolchain {
-            languageVersion = JavaLanguageVersion.of(jvmTarget)
-        }
-    }
-
-    withType<Test> {
-        useJUnitPlatform()
-        testLogging {
-            events("skipped", "failed")
-            showExceptions = true
-            showStackTraces = true
-            showCauses = true
-            exceptionFormat = TestExceptionFormat.FULL
-            showStandardStreams = true
-        }
-    }
-
-    withType<Wrapper> {
-        gradleVersion = "8.6"
+    jar {
+        enabled = false
     }
 }
 
 repositories {
     mavenCentral()
+    mavenLocal()
 }
 
-val githubUser: String? by project
-val githubPassword: String? by project
-
-publishing {
-    repositories {
-        maven {
-            url = uri("https://maven.pkg.github.com/navikt/rapids-and-rivers")
-            credentials {
-                username = githubUser
-                password = githubPassword
-            }
-        }
-    }
-    publications {
-        create<MavenPublication>("mavenJava") {
-
-            pom {
-                name.set("rapids-rivers")
-                description.set("Rapids and Rivers")
-                url.set("https://github.com/navikt/rapids-and-rivers")
-
-                licenses {
-                    license {
-                        name.set("MIT License")
-                        url.set("https://opensource.org/licenses/MIT")
-                    }
-                }
-
-                scm {
-                    connection.set("scm:git:https://github.com/navikt/rapids-and-rivers.git")
-                    developerConnection.set("scm:git:https://github.com/navikt/rapids-and-rivers.git")
-                    url.set("https://github.com/navikt/rapids-and-rivers")
-                }
-            }
-            from(components["java"])
-        }
-    }
+dependencies {
+    implementation(kotlin("stdlib-jdk8"))
 }
