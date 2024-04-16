@@ -1,9 +1,7 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
-
 plugins {
     kotlin("jvm").version(Kotlin.version)
-    kotlin("plugin.serialization") version Kotlin.version
     `java-library`
     `maven-publish`
 }
@@ -11,6 +9,12 @@ plugins {
 repositories {
     mavenCentral()
     mavenLocal()
+}
+
+kotlin {
+    jvmToolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
 }
 
 dependencies {
