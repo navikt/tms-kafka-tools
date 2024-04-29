@@ -117,6 +117,30 @@ fun main() {
 }
 ```
 
+### Eventer og primærnavn
+
+Det er forventet at alle kafka-eventer har ett felles felt som beskriver typene deres. Dette feltet er som default
+`@event_name`, men kan endres ved i konfigurasjonen som følger:
+
+```kotlin
+fun main() {
+    KafkaApplication.build {
+        kafkaConfig {
+            eventName = "<annet alternativ>"
+            
+            ...
+        }
+        
+        ...
+    }.start()
+}
+```
+
+Det er ingen spesielle regler for hvordan dette feltet ser ut, men konvensjonen er at det er prefikset med '@'.
+
+Bemerk at en kafka-applikasjon kun forholder seg til ett primærnavn, og kan ikke lese eventer der primærnavn defineres
+av ulike felt.
+
 ### Feilhåndtering
 
 Feil som oppstår under lesing fra kafka behandles ulikt basert på årsak:
