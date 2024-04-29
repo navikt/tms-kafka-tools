@@ -10,14 +10,17 @@ import kotlin.time.DurationUnit
 import kotlin.time.measureTimedValue
 
 internal class RecordBroadcaster(
-    private val subscribers: List<Subscriber>
+    private val subscribers: List<Subscriber>,
+    eventName: String
 ) {
     private val log = KotlinLogging.logger {}
     private val secureLog = KotlinLogging.logger("secureLog")
 
+    private val messageBuilder = JsonMessageBuilder(eventName)
+
     suspend fun broadcastRecord(record: ConsumerRecord<String, String>) {
         try {
-            JsonMessage.fromRecord(record).let {
+            messageBuilder.fromRecord(record).let {
                 broadcastMessage(it)
                 Metrics.onValidEventCounter.labels(record.topic(), it.eventName).inc()
             }
@@ -27,8 +30,8 @@ internal class RecordBroadcaster(
             secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because value is not valid json" }
         } catch (e: MessageFormatException) {
             Metrics.onInvalidEventCounter.labels(record.topic(), "missing_name").inc()
-            log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name'" }
-            secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name'" }
+            log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name' or its alternative" }
+            secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name' or its alternative" }
         }
     }
 
@@ -49,14 +52,17 @@ internal class RecordBroadcaster(
 
 // For use in tests in dependent projects
 class MessageBroadcaster(
-    private val subscribers: List<Subscriber>
+    private val subscribers: List<Subscriber>,
+    eventName: String = JsonMessage.DEFAULT_EVENT_NAME
 ) {
+    private val messageBuilder: JsonMessageBuilder = JsonMessageBuilder(eventName)
+
     fun broadcastRecord(record: ConsumerRecord<String, String>) {
-        broadcastMessage(JsonMessage.fromRecord(record))
+        broadcastMessage(messageBuilder.fromRecord(record))
     }
 
     fun broadcastJson(jsonString: String, metadata: EventMetadata? = null) {
-        broadcastMessage(JsonMessage.fromJson(jsonString, metadata))
+        broadcastMessage(messageBuilder.fromJson(jsonString, metadata))
     }
 
     private fun broadcastMessage(jsonMessage: JsonMessage) {

@@ -70,7 +70,7 @@ class KafkaApplicationBuilder internal constructor() {
 
     private var collectorRegistry: CollectorRegistry = CollectorRegistry.defaultRegistry
 
-    private var readerConfig: KafkaConsumerConfig? = null
+    private var readerConfig: KafkaReaderConfig? = null
 
     fun ktorModule(module: Application.() -> Unit) {
         customizableModule = module
@@ -92,8 +92,8 @@ class KafkaApplicationBuilder internal constructor() {
         this.shutdownHook = shutdownHook
     }
 
-    fun kafkaConfig(config: ConsumerConfigBuilder.() -> Unit) {
-        readerConfig = ConsumerConfigBuilder()
+    fun kafkaConfig(config: KafkaReaderConfigBuilder.() -> Unit) {
+        readerConfig = KafkaReaderConfigBuilder()
             .also(config)
             .build()
     }
@@ -110,10 +110,11 @@ class KafkaApplicationBuilder internal constructor() {
                 clientId = config.clientId,
                 enableSsl = config.enableSsl,
                 env = config.environment,
+                properties = config.properties
             ),
             groupId = config.groupId,
             kafkaTopics = config.kafkaTopics,
-            broadcaster = RecordBroadcaster(subscribers)
+            broadcaster = RecordBroadcaster(subscribers, config.eventName)
         )
 
         return KafkaApplication(
@@ -131,28 +132,30 @@ class KafkaApplicationBuilder internal constructor() {
     }
 }
 
-class ConsumerConfigBuilder internal constructor() {
+class KafkaReaderConfigBuilder internal constructor() {
     private val kafkaTopics: MutableList<String> = mutableListOf()
     fun readTopic(topic: String) = kafkaTopics.add(topic)
     fun readTopics(vararg topics: String) = kafkaTopics.addAll(topics)
     fun withProperties(config: Properties.() -> Unit) = properties.apply(config)
 
+    var eventName: String = JsonMessage.DEFAULT_EVENT_NAME
     var groupId: String? = null
     var enableSSL: Boolean = true
     var environment: Map<String, String> = System.getenv()
     private val properties = Properties()
 
-    internal fun build(): KafkaConsumerConfig {
+    internal fun build(): KafkaReaderConfig {
         require(kafkaTopics.isNotEmpty()) { "Must supply at least 1 kafka topic from which to read" }
         requireNotNull(groupId) { "Must define groupId" }
 
-        return KafkaConsumerConfig(
+        return KafkaReaderConfig(
             clientId = generateClientId(environment),
             kafkaTopics = kafkaTopics,
             groupId = groupId!!,
             enableSsl = enableSSL,
             environment = environment,
-            properties = properties
+            properties = properties,
+            eventName = eventName
         )
     }
 
@@ -162,11 +165,12 @@ class ConsumerConfigBuilder internal constructor() {
     }
 }
 
-internal class KafkaConsumerConfig(
+internal class KafkaReaderConfig(
     val clientId: String,
     val groupId: String,
     val kafkaTopics: List<String> = emptyList(),
     val enableSsl: Boolean,
     val environment: Map<String, String>,
-    val properties: Properties
+    val properties: Properties,
+    val eventName: String
 )
