@@ -18,73 +18,16 @@ class JsonMessage internal constructor(
 
     fun getOrNull(fieldName: String): JsonNode? = json.get(fieldName)
 
+    internal fun withFields(fields: Collection<String>) = JsonMessage(
+        eventName = eventName,
+        json = json.keepFields(fields),
+        metadata = metadata
+    )
+
     companion object {
-        private const val eventNameField = "@event_name"
+        const val DEFAULT_EVENT_NAME = "@event_name"
 
         private val objectMapper = jacksonObjectMapper()
-
-        fun fromRecord(consumerRecord: ConsumerRecord<String, String>): JsonMessage {
-            val json = try {
-                objectMapper.readTree(consumerRecord.value())
-            } catch (e: Exception) {
-                throw JsonException(e.message!!)
-            }
-
-            if (!json.isContainerNode) {
-                throw JsonException("Root-level json object must be container node")
-            }
-
-            if (!json.contains(eventNameField)) {
-                throw MessageFormatException("Field '@event_name' must be present at top level of json object")
-            }
-
-            return JsonMessage(
-                eventName = json["@event_name"].asText(),
-                json = json,
-                metadata = EventMetadata(
-                    topic = consumerRecord.topic(),
-                    kafkaEvent = KafkaEvent(key = consumerRecord.key(), value = consumerRecord.value()),
-                    createdAt = consumerRecord.timestampZ(),
-                    readAt = nowAtUtc()
-                )
-            )
-        }
-
-        fun fromJson(jsonString: String, eventMetadata: EventMetadata?): JsonMessage {
-            val json = try {
-                objectMapper.readTree(jsonString)
-            } catch (e: Exception) {
-                throw JsonException(e.message!!)
-            }
-
-            if (!json.isContainerNode) {
-                throw JsonException("Root-level json object must be container node")
-            }
-
-            if (!json.contains(eventNameField)) {
-                throw MessageFormatException("Field '@event_name' must be present at top level of json object")
-            }
-
-            val metadata = eventMetadata ?: EventMetadata(
-                "unknown_topic",
-                kafkaEvent = KafkaEvent(key = "unknown_key", value = jsonString),
-                createdAt = nowAtUtc(),
-                readAt = nowAtUtc()
-            )
-
-            return JsonMessage(
-                eventName = json["@event_name"].asText(),
-                json = json,
-                metadata = metadata
-            )
-        }
-
-        private fun ConsumerRecord<String, String>.timestampZ() = when (timestampType()) {
-            TimestampType.LOG_APPEND_TIME, TimestampType.CREATE_TIME -> {
-                Instant.ofEpochMilli(timestamp()).let { ZonedDateTime.ofInstant(it, ZoneId.of("Z")) }
-            }
-            else ->  null
-        }
 
         private fun JsonNode.keepFields(fields: Collection<String>): JsonNode {
             val objectNode = objectMapper.createObjectNode()
@@ -98,12 +41,74 @@ class JsonMessage internal constructor(
             return objectNode
         }
     }
+}
 
-    internal fun withFields(fields: Collection<String>) = JsonMessage(
-        eventName = eventName,
-        json = json.keepFields(fields),
-        metadata = metadata
-    )
+internal class JsonMessageBuilder(private val primaryNameField: String) {
+
+    private val objectMapper = jacksonObjectMapper()
+
+    fun fromRecord(consumerRecord: ConsumerRecord<String, String>): JsonMessage {
+        val json = try {
+            objectMapper.readTree(consumerRecord.value())
+        } catch (e: Exception) {
+            throw JsonException(e.message!!)
+        }
+
+        if (!json.isContainerNode) {
+            throw JsonException("Root-level json object must be container node")
+        }
+
+        if (!json.contains(primaryNameField)) {
+            throw MessageFormatException("Field '$primaryNameField' must be present at top level of json object")
+        }
+
+        return JsonMessage(
+            eventName = json[primaryNameField].asText(),
+            json = json,
+            metadata = EventMetadata(
+                topic = consumerRecord.topic(),
+                kafkaEvent = KafkaEvent(key = consumerRecord.key(), value = consumerRecord.value()),
+                createdAt = consumerRecord.timestampZ(),
+                readAt = nowAtUtc()
+            )
+        )
+    }
+
+    fun fromJson(jsonString: String, eventMetadata: EventMetadata?): JsonMessage {
+        val json = try {
+            objectMapper.readTree(jsonString)
+        } catch (e: Exception) {
+            throw JsonException(e.message!!)
+        }
+
+        if (!json.isContainerNode) {
+            throw JsonException("Root-level json object must be container node")
+        }
+
+        if (!json.contains(primaryNameField)) {
+            throw MessageFormatException("Field '$primaryNameField' must be present at top level of json object")
+        }
+
+        val metadata = eventMetadata ?: EventMetadata(
+            "unknown_topic",
+            kafkaEvent = KafkaEvent(key = "unknown_key", value = jsonString),
+            createdAt = nowAtUtc(),
+            readAt = nowAtUtc()
+        )
+
+        return JsonMessage(
+            eventName = json[primaryNameField].asText(),
+            json = json,
+            metadata = metadata
+        )
+    }
+
+    private fun ConsumerRecord<String, String>.timestampZ() = when (timestampType()) {
+        TimestampType.LOG_APPEND_TIME, TimestampType.CREATE_TIME -> {
+            Instant.ofEpochMilli(timestamp()).let { ZonedDateTime.ofInstant(it, ZoneId.of("Z")) }
+        }
+        else ->  null
+    }
 }
 
 private fun nowAtUtc() = ZonedDateTime.now(ZoneId.of("Z"))
