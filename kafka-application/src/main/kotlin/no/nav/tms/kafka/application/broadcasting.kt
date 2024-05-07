@@ -29,6 +29,10 @@ internal class RecordBroadcaster(
             Metrics.onInvalidEventCounter.labels(record.topic(), "missing_name").inc()
             log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name'" }
             secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name'" }
+        }  catch (nullpointer: NullPointerException){
+            Metrics.onInvalidEventCounter.labels(record.topic(), "nullpointer").inc()
+            log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null'" }
+            secureLog.warn(nullpointer) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null'" }
         }
     }
 

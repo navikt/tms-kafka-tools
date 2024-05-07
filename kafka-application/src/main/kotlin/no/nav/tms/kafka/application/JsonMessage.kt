@@ -121,6 +121,6 @@ data class EventMetadata(
 )
 
 data class KafkaEvent(
-    val key: String,
+    val key: String?,
     val value: String
 )

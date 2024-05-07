@@ -103,15 +103,20 @@ class KafkaApplicationIT {
         listOf(brokenEvent, incompleteEvent, sixGreenBeads, nineGreenBeads, yellowBeads)
             .forEach(::sendMessage)
 
+        val eventMissingKey = """{ "@event_name": "beads_counted", "color": "green", "amount": 5 }"""
+
+        listOf(eventMissingKey)
+            .forEach(::sendMessageWithoutKey)
+
         await("wait for green beads to be counted")
             .atMost(10, TimeUnit.SECONDS)
-            .until{ stateHolder.greenBeads == 15 }
+            .until{ stateHolder.greenBeads == 20 }
 
-        stateHolder.greenBeads shouldBe 15
+        stateHolder.greenBeads shouldBe 20
 
         // Test custom module
 
-        testClient.get("/count").bodyAsText() shouldBe "15"
+        testClient.get("/count").bodyAsText() shouldBe "20"
 
         // Stop application and verify shutdown
 
@@ -158,6 +163,12 @@ class KafkaApplicationIT {
     private fun sendMessage(body: String) {
         producer.send(
             ProducerRecord(testTopic, UUID.randomUUID().toString(), body)
+        )
+    }
+
+    private fun sendMessageWithoutKey(body: String) {
+        producer.send(
+            ProducerRecord(testTopic, null, body)
         )
     }
 }

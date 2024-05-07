@@ -306,6 +306,33 @@ class KafkaReaderTest {
         reader.isRunning() shouldBe true
     }
 
+    @Test
+    fun `tolerates nullpointer`() {
+
+        var didRead = false
+
+        val nullThrower = object : Subscriber() {
+            override fun subscribe() = Subscription.forEvent("nully")
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                didRead = true
+                jsonMessage["nonexistant"]
+            }
+        }
+
+        listOf(
+            """{ "@event_name": "nully" }"""
+        ).forEach(::sendTestMessage)
+
+        val reader = runTestReader(subscribers = listOf(nullThrower))
+
+        await("Wait until break has been signalled")
+            .atMost(10, TimeUnit.SECONDS)
+            .until { didRead }
+
+        reader.isRunning() shouldBe true
+    }
+
     private fun orderJson(category: String, name: String, count: Int) = """
     {
         "@event_name": "order_placed",
