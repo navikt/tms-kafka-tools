@@ -307,6 +307,35 @@ class KafkaReaderTest {
     }
 
     @Test
+    fun `allows for alternative event-name fields`() {
+        val crudReader = object : Subscriber() {
+            var someValue = "something"
+
+            override fun subscribe() = Subscription.forEvent("update")
+                .withFields("newValue")
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                jsonMessage["newValue"].asText().let { someValue = it }
+            }
+        }
+
+        """
+        {
+            "@action": "update",
+            "newValue": "something else"
+        } 
+        """.let(::sendTestMessage)
+
+        runTestReader(eventName = "@action", subscribers = listOf(crudReader))
+
+        await("Wait until break has been signalled")
+            .atMost(10, TimeUnit.SECONDS)
+            .until { crudReader.someValue != "something" }
+
+        crudReader.someValue shouldBe "something else"
+    }
+
+    @Test
     fun `tolerates nullpointer`() {
 
         var didRead = false
@@ -346,8 +375,13 @@ class KafkaReaderTest {
         producer.send(ProducerRecord(testTopic, UUID.randomUUID().toString(), value))
 
 
-    private fun runTestReader(waitUpToSeconds: Long = 10, subscribers: List<Subscriber> = emptyList()): KafkaReader {
-        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), RecordBroadcaster(subscribers))
+    private fun runTestReader(
+        eventName: String = JsonMessage.DEFAULT_EVENT_NAME,
+        waitUpToSeconds: Long = 10,
+        subscribers: List<Subscriber> = emptyList()
+    ): KafkaReader {
+
+        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), RecordBroadcaster(subscribers, eventName))
 
         kafkaReaders.add(reader)
 

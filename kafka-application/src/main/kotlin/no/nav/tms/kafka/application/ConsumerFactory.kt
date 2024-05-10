@@ -14,18 +14,18 @@ internal class ConsumerFactory private constructor(
 ) {
     private val stringDeserializer = StringDeserializer()
 
-    fun createConsumer(groupId: String, properties: Properties = Properties()): KafkaConsumer<String, String> {
-        return KafkaConsumer(joinProperties(groupId, properties), stringDeserializer, stringDeserializer)
-    }
+    fun createConsumer(groupId: String): KafkaConsumer<String, String> {
 
-    private fun joinProperties(groupId: String, customProperties: Properties) = Properties().apply {
-        putAll(baseProperties)
-        putAll(customProperties)
-        put(ConsumerConfig.GROUP_ID_CONFIG, groupId)
+        val withGroupId = Properties().apply {
+            putAll(baseProperties)
+            put(ConsumerConfig.GROUP_ID_CONFIG, groupId)
+        }
+
+        return KafkaConsumer(withGroupId, stringDeserializer, stringDeserializer)
     }
 
     companion object {
-        fun init(clientId: String, enableSsl: Boolean, env: Map<String, String>): ConsumerFactory = Properties().apply {
+        fun init(clientId: String, enableSsl: Boolean, env: Map<String, String>, properties: Properties = Properties()): ConsumerFactory = Properties().apply {
 
             configureBrokers(env)
             configureSecurity(enableSsl, env)
@@ -35,6 +35,8 @@ internal class ConsumerFactory private constructor(
             put(ConsumerConfig.CLIENT_ID_CONFIG, clientId)
             put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, clientId)
             put(ConsumerConfig.MAX_POLL_INTERVAL_MS_CONFIG, 300_000)
+
+            putAll(properties)
 
         }.let { ConsumerFactory(it) }
 

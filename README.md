@@ -14,7 +14,7 @@ vilkårlig `Subscriber`-objekter. Hvilke Subscribere som behandler hvilke evente
 For at et kafka-event skal være godkjent må det oppfylle følgende krav:
 
  - Innholdet i kafka-eventet er en json-string (I.E. ingen AVRO eller andre binærformat).
- - Eventet har et felt `@event_name` definert på toppen av json-objektet.
+ - Eventet har et navn-felt `@event_name` (eller et alternativ basert på config) definert på toppen av json-objektet.
  - Eventets nøkkel har ingen meningsbærende informasjon.
 
 Eksempel på gyldig innhold for event:
@@ -37,7 +37,7 @@ som definerer et gyldig json-objekt i sin kontekst, og garanterer at kun slike e
 
 Følgende regler kan brukes i Subscription:
 
- - Hvilken type event som skal leses basert på feltet `@event_name`. En Subscriber kan kun lytte på én type eventer.
+ - Hvilken type event som skal leses basert på eventets navn. Som default er dette feltet `@event_name`. En Subscriber kan kun lytte på én type eventer.
  - Hvilke felt skal finnes på toppnivå av json.
  - Hvilke verdier på disse feltene som er godkjente eller ugyldige.
  - Egendefinert filter på json-node. 
@@ -116,6 +116,30 @@ fun main() {
     }.start()
 }
 ```
+
+### Eventer og primærnavn
+
+Det er forventet at alle kafka-eventer har ett felles felt som beskriver typene deres. Dette feltet er som default
+`@event_name`, men kan endres ved i konfigurasjonen som følger:
+
+```kotlin
+fun main() {
+    KafkaApplication.build {
+        kafkaConfig {
+            eventName = "<annet alternativ>"
+            
+            ...
+        }
+        
+        ...
+    }.start()
+}
+```
+
+Det er ingen spesielle regler for hvordan dette feltet ser ut, men konvensjonen er at det er prefikset med '@'.
+
+Bemerk at en kafka-applikasjon kun forholder seg til ett primærnavn, og kan ikke lese eventer der primærnavn defineres
+av ulike felt.
 
 ### Feilhåndtering
 
