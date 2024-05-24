@@ -114,7 +114,7 @@ class KafkaApplicationBuilder internal constructor() {
             ),
             groupId = config.groupId,
             kafkaTopics = config.kafkaTopics,
-            broadcaster = RecordBroadcaster(subscribers, config.eventName)
+            broadcaster = RecordBroadcaster(subscribers, config.eventNameFields)
         )
 
         return KafkaApplication(
@@ -138,15 +138,32 @@ class KafkaReaderConfigBuilder internal constructor() {
     fun readTopics(vararg topics: String) = kafkaTopics.addAll(topics)
     fun withProperties(config: Properties.() -> Unit) = properties.apply(config)
 
-    var eventName: String = JsonMessage.DEFAULT_EVENT_NAME
+    fun eventNameFields(vararg fieldNames: String) {
+        eventNameFields.clear()
+        eventNameFields.addAll(fieldNames)
+    }
+
+    @Deprecated("Use function eventNameFields()", replaceWith = ReplaceWith("this.eventNameFields()"))
+    var eventName: String? = null
+
     var groupId: String? = null
     var enableSSL: Boolean = true
     var environment: Map<String, String> = System.getenv()
+
     private val properties = Properties()
+    private val eventNameFields = mutableListOf<String>()
 
     internal fun build(): KafkaReaderConfig {
         require(kafkaTopics.isNotEmpty()) { "Must supply at least 1 kafka topic from which to read" }
         requireNotNull(groupId) { "Must define groupId" }
+
+        val nameFields = if (eventNameFields.isNotEmpty()) {
+            eventNameFields
+        } else if (eventName != null) {
+            listOf(eventName!!)
+        } else {
+            listOf(JsonMessage.DEFAULT_EVENT_NAME)
+        }
 
         return KafkaReaderConfig(
             clientId = generateClientId(environment),
@@ -155,13 +172,16 @@ class KafkaReaderConfigBuilder internal constructor() {
             enableSsl = enableSSL,
             environment = environment,
             properties = properties,
-            eventName = eventName
+            eventNameFields = nameFields
         )
     }
 
     private fun generateClientId(env: Map<String, String>): String {
-        if (env.containsKey("NAIS_APP_NAME")) return InetAddress.getLocalHost().hostName
-        return UUID.randomUUID().toString()
+        return if (env.containsKey("NAIS_APP_NAME")) {
+            InetAddress.getLocalHost().hostName
+        } else {
+            UUID.randomUUID().toString()
+        }
     }
 }
 
@@ -172,5 +192,5 @@ internal class KafkaReaderConfig(
     val enableSsl: Boolean,
     val environment: Map<String, String>,
     val properties: Properties,
-    val eventName: String
+    val eventNameFields: List<String>
 )

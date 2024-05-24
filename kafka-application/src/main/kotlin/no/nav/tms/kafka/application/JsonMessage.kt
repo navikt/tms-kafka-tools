@@ -43,7 +43,7 @@ class JsonMessage internal constructor(
     }
 }
 
-internal class JsonMessageBuilder(private val primaryNameField: String) {
+internal class JsonMessageBuilder(private val eventNameFields: List<String>) {
 
     private val objectMapper = jacksonObjectMapper()
 
@@ -58,12 +58,18 @@ internal class JsonMessageBuilder(private val primaryNameField: String) {
             throw JsonException("Root-level json object must be container node")
         }
 
-        if (!json.contains(primaryNameField)) {
-            throw MessageFormatException("Field '$primaryNameField' must be present at top level of json object")
+        if (!json.containsAny(eventNameFields)) {
+            val message = if (eventNameFields.size == 1) {
+                "Field '${eventNameFields.first()}' must be present at top level of json object"
+            } else {
+                "Any of fields [${eventNameFields.joinToString()}] must be present at top level of json object"
+            }
+
+            throw MessageFormatException(message)
         }
 
         return JsonMessage(
-            eventName = json[primaryNameField].asText(),
+            eventName = json.eventName(eventNameFields),
             json = json,
             metadata = EventMetadata(
                 topic = consumerRecord.topic(),
@@ -85,8 +91,14 @@ internal class JsonMessageBuilder(private val primaryNameField: String) {
             throw JsonException("Root-level json object must be container node")
         }
 
-        if (!json.contains(primaryNameField)) {
-            throw MessageFormatException("Field '$primaryNameField' must be present at top level of json object")
+        if (!json.containsAny(eventNameFields)) {
+            val message = if (eventNameFields.size == 1) {
+                "Field '${eventNameFields.first()}' must be present at top level of json object"
+            } else {
+                "Any of fields [${eventNameFields.joinToString()}] must be present at top level of json object"
+            }
+
+            throw MessageFormatException(message)
         }
 
         val metadata = eventMetadata ?: EventMetadata(
@@ -97,7 +109,7 @@ internal class JsonMessageBuilder(private val primaryNameField: String) {
         )
 
         return JsonMessage(
-            eventName = json[primaryNameField].asText(),
+            eventName = json.eventName(eventNameFields),
             json = json,
             metadata = metadata
         )
@@ -109,6 +121,14 @@ internal class JsonMessageBuilder(private val primaryNameField: String) {
         }
         else ->  null
     }
+}
+
+private fun JsonNode.containsAny(fields: List<String>) = fields.any { contains(it) }
+
+private fun JsonNode.eventName(nameFields: List<String>): String {
+    val primaryName = nameFields.first { contains(it) }
+
+    return get(primaryName).asText()
 }
 
 private fun nowAtUtc() = ZonedDateTime.now(ZoneId.of("Z"))

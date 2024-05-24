@@ -326,13 +326,64 @@ class KafkaReaderTest {
         } 
         """.let(::sendTestMessage)
 
-        runTestReader(eventName = "@action", subscribers = listOf(crudReader))
+        runTestReader(eventNameFields = listOf("@action"), subscribers = listOf(crudReader))
 
         await("Wait until break has been signalled")
             .atMost(10, TimeUnit.SECONDS)
             .until { crudReader.someValue != "something" }
 
         crudReader.someValue shouldBe "something else"
+    }
+
+    @Test
+    fun `allows for specifying different event name fields in prioritized order`() {
+        val counterOne = object : Subscriber() {
+            var counter = 0
+
+            override fun subscribe() = Subscription.forEvent("one")
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                counter++
+            }
+        }
+
+        val counterTwo = object : Subscriber() {
+            var counter = 0
+
+            override fun subscribe() = Subscription.forEvent("two")
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                counter++
+            }
+        }
+
+        """
+        {
+            "@some": "one"
+        } 
+        """.let(::sendTestMessage)
+
+        """
+        {
+            "@some": "one",
+            "@other": "two"
+        } 
+        """.let(::sendTestMessage)
+
+        """
+        {
+            "@other": "two"
+        } 
+        """.let(::sendTestMessage)
+
+        runTestReader(eventNameFields = listOf("@some", "@other"), subscribers = listOf(counterOne, counterTwo))
+
+        await("Wait until break has been signalled")
+            .atMost(5, TimeUnit.SECONDS)
+            .until { counterOne.counter + counterTwo.counter == 3 }
+
+        counterOne.counter shouldBe 2
+        counterTwo.counter shouldBe 1
     }
 
     @Test
@@ -362,6 +413,58 @@ class KafkaReaderTest {
         reader.isRunning() shouldBe true
     }
 
+    @Test
+    fun `excludes event name field from json object unless explicitly included`() {
+
+        val missing = object : Subscriber() {
+            override fun subscribe() = Subscription.forEvent("name")
+
+            var didRead = false
+            var npe = false
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                try {
+                    didRead = true
+                    jsonMessage[JsonMessage.DEFAULT_EVENT_NAME]
+                } catch (e: NullPointerException) {
+                    npe = true
+                }
+            }
+        }
+
+        val present = object : Subscriber() {
+            override fun subscribe() = Subscription.forEvent("name")
+                .withFields("@event_name")
+
+            var didRead = false
+            var npe = false
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                try {
+                    didRead = true
+                    jsonMessage[JsonMessage.DEFAULT_EVENT_NAME]
+                } catch (e: NullPointerException) {
+                    npe = true
+                }
+            }
+        }
+
+        listOf(
+            """{ "@event_name": "name" }"""
+        ).forEach(::sendTestMessage)
+
+        val reader = runTestReader(subscribers = listOf(missing, present))
+
+        await("Wait until break has been signalled")
+            .atMost(10, TimeUnit.SECONDS)
+            .until { missing.didRead && present.didRead }
+
+        missing.npe shouldBe true
+        present.npe shouldBe false
+
+        reader.isRunning() shouldBe true
+    }
+
     private fun orderJson(category: String, name: String, count: Int) = """
     {
         "@event_name": "order_placed",
@@ -376,12 +479,12 @@ class KafkaReaderTest {
 
 
     private fun runTestReader(
-        eventName: String = JsonMessage.DEFAULT_EVENT_NAME,
+        eventNameFields: List<String> = listOf(JsonMessage.DEFAULT_EVENT_NAME),
         waitUpToSeconds: Long = 10,
         subscribers: List<Subscriber> = emptyList()
     ): KafkaReader {
 
-        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), RecordBroadcaster(subscribers, eventName))
+        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), RecordBroadcaster(subscribers, eventNameFields))
 
         kafkaReaders.add(reader)
 

@@ -24,11 +24,11 @@ private const val metricsEndpoint = "/metrics"
 internal fun setupKtorApplication(
     isAliveCheck: () -> Boolean,
     port: Int = 8080,
-    metrics: List<MeterBinder> = emptyList(),
-    collectorRegistry: CollectorRegistry = CollectorRegistry.defaultRegistry,
+    metrics: List<MeterBinder>,
+    collectorRegistry: CollectorRegistry,
     customizeableModule: Application.() -> Unit,
-    onStartup: () -> Unit = {},
-    onShutdown: () -> Unit = {}
+    onStartup: () -> Unit,
+    onShutdown: () -> Unit
 ) = embeddedServer(
     factory = CIO,
     environment = applicationEngineEnvironment {

@@ -117,7 +117,7 @@ fun main() {
 }
 ```
 
-### Eventer og primærnavn
+### Eventer og navn
 
 Det er forventet at alle kafka-eventer har ett felles felt som beskriver typene deres. Dette feltet er som default
 `@event_name`, men kan endres ved i konfigurasjonen som følger:
@@ -126,7 +126,7 @@ Det er forventet at alle kafka-eventer har ett felles felt som beskriver typene 
 fun main() {
     KafkaApplication.build {
         kafkaConfig {
-            eventName = "<annet alternativ>"
+            eventNameFields("@alternativ", "@annet")
             
             ...
         }
@@ -138,8 +138,22 @@ fun main() {
 
 Det er ingen spesielle regler for hvordan dette feltet ser ut, men konvensjonen er at det er prefikset med '@'.
 
-Bemerk at en kafka-applikasjon kun forholder seg til ett primærnavn, og kan ikke lese eventer der primærnavn defineres
-av ulike felt.
+Dersom en spesifiserer flere felt som mulig eventnavn, og et event har flere slike felt, er det feltet som
+ble satt først i lista som er gjeldende eventnavn. I eksempelet over vil det være `@alternativ`.
+
+I utgangspunktet regnes eventnavn som metadata, og vil ikke bli med i json-objektet i JsonMessage. Dersom en ønsker
+å inkludere dette feltet, kan en i tillegg spesifisere det i Subscription som om det var et vanlig felt:
+
+```kotlin
+class SomeSubscriber : Subscriber() {
+    override fun subscription() = Subscription.forEvent("name")
+        .withFields("@event_name")
+    
+    override suspend fun receive(jsonMessage: JsonMessage) {
+        consumeName(jsonMessage["@event_name"])
+    }
+}
+```
 
 ### Feilhåndtering
 

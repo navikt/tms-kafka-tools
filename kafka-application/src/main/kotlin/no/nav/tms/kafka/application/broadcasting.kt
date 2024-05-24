@@ -11,12 +11,12 @@ import kotlin.time.measureTimedValue
 
 internal class RecordBroadcaster(
     private val subscribers: List<Subscriber>,
-    eventName: String
+    eventNameFields: List<String>
 ) {
     private val log = KotlinLogging.logger {}
     private val secureLog = KotlinLogging.logger("secureLog")
 
-    private val messageBuilder = JsonMessageBuilder(eventName)
+    private val messageBuilder = JsonMessageBuilder(eventNameFields)
 
     suspend fun broadcastRecord(record: ConsumerRecord<String, String>) {
         try {
@@ -57,9 +57,9 @@ internal class RecordBroadcaster(
 // For use in tests in dependent projects
 class MessageBroadcaster(
     private val subscribers: List<Subscriber>,
-    eventName: String = JsonMessage.DEFAULT_EVENT_NAME
+    eventNameFields: List<String> = listOf(JsonMessage.DEFAULT_EVENT_NAME)
 ) {
-    private val messageBuilder: JsonMessageBuilder = JsonMessageBuilder(eventName)
+    private val messageBuilder: JsonMessageBuilder = JsonMessageBuilder(eventNameFields)
 
     fun broadcastRecord(record: ConsumerRecord<String, String>) {
         broadcastMessage(messageBuilder.fromRecord(record))
