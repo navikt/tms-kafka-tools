@@ -119,8 +119,8 @@ fun main() {
 
 ### Eventer og navn
 
-Det er forventet at alle kafka-eventer har ett felles felt som beskriver typene deres. Dette feltet er som default
-`@event_name`, men kan endres ved i konfigurasjonen som følger:
+Det er forventet at alle kafka-eventer har ett felt som indikerer eventets type. Innholdet i dette feltet må 
+være en String. Navnet på feltet er som default `@event_name`, men kan endres ved i konfigurasjonen som følger:
 
 ```kotlin
 fun main() {
@@ -136,7 +136,7 @@ fun main() {
 }
 ```
 
-Det er ingen spesielle regler for hvordan dette feltet ser ut, men konvensjonen er at det er prefikset med '@'.
+Det er ingen spesielle regler hva feltet kan hete, men konvensjonen er at det er prefikset med '@'.
 
 Dersom en spesifiserer flere felt som mulig eventnavn, og et event har flere slike felt, er det feltet som
 ble satt først i lista som er gjeldende eventnavn. I eksempelet over vil det være `@alternativ`.
