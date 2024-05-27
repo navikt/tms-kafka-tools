@@ -1,6 +1,8 @@
 package no.nav.tms.kafka.application
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
@@ -374,6 +376,81 @@ class SubscriberTest {
         orderListener.rColors shouldBe 2
     }
 
+    @Test
+    fun `allows subscribing to multiple events`() = runBlocking<Unit> {
+        val salesEventListener = object : Subscriber() {
+            var orderReceived = false
+            var invoiceSent = false
+            var paymentMade = false
+
+            override fun subscribe() = Subscription.forEvents("order", "invoice", "payment")
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                when (jsonMessage.eventName) {
+                    "order" -> orderReceived = true
+                    "invoice" -> invoiceSent = true
+                    "payment" -> paymentMade = true
+                }
+            }
+        }
+
+        """{ "@event_name": "order" }"""
+            .asMessage()
+            .let { salesEventListener.onMessage(it) }
+
+        salesEventListener.orderReceived shouldBe true
+        salesEventListener.invoiceSent shouldBe false
+        salesEventListener.paymentMade shouldBe false
+
+        """{ "@event_name": "invoice" }"""
+            .asMessage()
+            .let { salesEventListener.onMessage(it) }
+
+        salesEventListener.orderReceived shouldBe true
+        salesEventListener.invoiceSent shouldBe true
+        salesEventListener.paymentMade shouldBe false
+
+        """{ "@event_name": "payment" }"""
+            .asMessage()
+            .let { salesEventListener.onMessage(it) }
+
+        salesEventListener.orderReceived shouldBe true
+        salesEventListener.invoiceSent shouldBe true
+        salesEventListener.paymentMade shouldBe true
+    }
+
+    @Test
+    fun `allows subscribing to all events`() = runBlocking<Unit> {
+        val colorSubscriber = object : Subscriber() {
+            var eventsHandled = 0
+            var colors = mutableSetOf<String>()
+
+            override fun subscribe() = Subscription.forAllEvents()
+                .withFields("color")
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                colors.add(jsonMessage["color"].asText())
+                eventsHandled++
+            }
+        }
+
+        """{ "@event_name": "birdSighted", "color": "gray" }"""
+            .asMessage()
+            .let { colorSubscriber.onMessage(it) }
+
+        """{ "@event_name": "order", "color": "green" }"""
+            .asMessage()
+            .let { colorSubscriber.onMessage(it) }
+
+        """{ "@event_name": "order", "flavor": "strawberry" }"""
+            .asMessage()
+            .let { colorSubscriber.onMessage(it) }
+
+
+        colorSubscriber.eventsHandled shouldBe 2
+        colorSubscriber.colors shouldContainAll listOf("green", "gray")
+    }
+
     private fun Int.isPrime(): Boolean {
         require(this in 1..100) { "Not valid for numbers outside range 1-100 inclusive" }
 
@@ -382,7 +459,7 @@ class SubscriberTest {
         return when {
             this == 1 -> false
             this in lowPrimes -> true
-            else -> (2..10).none { this % it == 0 }
+            else -> lowPrimes.none { this % it == 0 }
         }
     }
 

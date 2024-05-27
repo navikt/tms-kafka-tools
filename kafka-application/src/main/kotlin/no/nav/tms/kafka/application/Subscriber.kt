@@ -55,7 +55,7 @@ enum class MessageStatus {
     override fun toString() = name.lowercase()
 }
 
-class Subscription private constructor(private val eventName: String) {
+class Subscription private constructor(private val eventNames: List<String>) {
 
     internal val knownFields = mutableSetOf<String>()
 
@@ -64,6 +64,12 @@ class Subscription private constructor(private val eventName: String) {
     private val requiredValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val rejectedValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val valueFilters: MutableMap<String, (JsonNode) -> Boolean> = mutableMapOf()
+
+    companion object {
+        fun forEvent(name: String)  = Subscription(listOf(name))
+        fun forEvents(name: String, vararg names: String) = Subscription(listOf(name) + names.toList())
+        fun forAllEvents() = Subscription(emptyList())
+    }
 
     fun withFields(vararg fields: String) = also {
         knownFields.addAll(fields)
@@ -132,7 +138,7 @@ class Subscription private constructor(private val eventName: String) {
         jsonMessage: JsonMessage,
         onAccept: suspend (JsonMessage) -> Unit
     ): SubscriberResult {
-        if (jsonMessage.eventName != eventName) {
+        if (eventNames.isNotEmpty() && !eventNames.contains(jsonMessage.eventName)) {
             return IgnoreReason.incorrectEvent(jsonMessage.eventName)
                 .let(SubscriberResult::ignored)
         }
@@ -205,10 +211,6 @@ class Subscription private constructor(private val eventName: String) {
             is String -> node.isTextual && node.asText() == value
             else -> throw IllegalStateException("Unknown type in required values: ${value::class.simpleName}")
         }
-    }
-
-    companion object {
-        fun forEvent(name: String) = Subscription(name)
     }
 }
 
