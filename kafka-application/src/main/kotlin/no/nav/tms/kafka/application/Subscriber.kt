@@ -66,8 +66,8 @@ class Subscription private constructor(private val eventNames: List<String>) {
     private val valueFilters: MutableMap<String, (JsonNode) -> Boolean> = mutableMapOf()
 
     companion object {
-        fun forEvent(name: String) = Subscription(listOf(name))
-        fun forEvents(vararg names: String) = Subscription(names.toList())
+        fun forEvent(name: String)  = Subscription(listOf(name))
+        fun forEvents(name: String, vararg names: String) = Subscription(listOf(name) + names.toList())
         fun forAllEvents() = Subscription(emptyList())
     }
 
