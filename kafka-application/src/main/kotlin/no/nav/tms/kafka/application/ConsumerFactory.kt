@@ -30,7 +30,7 @@ internal class ConsumerFactory private constructor(
             configureBrokers(env)
             configureSecurity(enableSsl, env)
 
-            put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true")
+            put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false")
             put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
             put(ConsumerConfig.CLIENT_ID_CONFIG, clientId)
             put(ConsumerConfig.GROUP_INSTANCE_ID_CONFIG, clientId)

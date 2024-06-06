@@ -3,6 +3,8 @@ package no.nav.tms.kafka.application
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.matchers.collections.shouldContainOnly
 import io.kotest.matchers.longs.shouldBeGreaterThan
+import io.kotest.matchers.longs.shouldBeGreaterThanOrEqual
+import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.*
 import org.apache.kafka.clients.admin.AdminClient
@@ -215,7 +217,7 @@ class KafkaReaderTest {
             ?: fail { "was not able to fetch committed offset for consumer $groupId" }
 
         val actualOffset = offsets.getValue(TopicPartition(recordMetadata.topic(), recordMetadata.partition()))
-        Assertions.assertTrue(actualOffset.offset() >= recordMetadata.offset())
+        actualOffset.offset() shouldBeGreaterThanOrEqual recordMetadata.offset()
     }
 
     @Test
@@ -463,6 +465,40 @@ class KafkaReaderTest {
         present.npe shouldBe false
 
         reader.isRunning() shouldBe true
+    }
+
+    @Test
+    fun `should rollback on reader job being cancelled`() {
+        val slowscriber = object : Subscriber() {
+            override fun subscribe() = Subscription.forEvent("event")
+
+            var didRead = false
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                delay(1000)
+                didRead = true
+            }
+        }
+
+        sendAndAwait(testTopic, """{ "@event_name": "unrelated" }""")
+
+        val reader = runTestReader(subscribers = listOf(slowscriber))
+
+        reader.stop()
+
+        val recordMetadata = sendAndAwait(testTopic, """{ "@event_name": "event" }""")
+
+        slowscriber.didRead shouldBe false
+
+        val offsets = adminClient
+            .listConsumerGroupOffsets(groupId)
+            ?.partitionsToOffsetAndMetadata()
+            ?.get()
+            ?: fail { "was not able to fetch committed offset for consumer $groupId" }
+
+        val actualOffset = offsets.getValue(TopicPartition(recordMetadata.topic(), recordMetadata.partition()))
+
+        actualOffset.offset() shouldBeLessThanOrEqual recordMetadata.offset()
     }
 
     private fun orderJson(category: String, name: String, count: Int) = """
