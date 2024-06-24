@@ -83,13 +83,14 @@ internal class KafkaReader(
 
         try {
             records.forEach { record ->
+                currentPositions[record.topicPartition()] = record.offset()
                 onRecord(record)
-                currentPositions[record.topicPartition()] = record.offset() + 1
             }
         } catch (err: Exception) {
-            log.info { "due to an error during processing, positions are reset to each next message." }
+
+            log.info { "committing local offsets prematurely due to an error during processing" }
             secureLog.info(err) {
-                "due to an error during processing, positions are reset to each next message (after each record that was processed OK):" +
+                "committing local offsets prematurely due to an error during processing" +
                     currentPositions.map { "\tpartition=${it.key}, offset=${it.value}" }
                         .joinToString(separator = "\n", prefix = "\n", postfix = "\n")
             }
