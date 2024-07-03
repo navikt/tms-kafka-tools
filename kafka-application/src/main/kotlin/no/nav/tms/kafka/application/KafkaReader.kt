@@ -124,12 +124,6 @@ internal class KafkaReader(
         "kafka_record_offset" to "${record.offset()}"
     )
 
-    private fun TopicPartition.commitSync() {
-        val offset = consumer.position(this)
-        log.info { "committing offset offset=$offset for partition=$this" }
-        consumer.commitSync(mapOf(this to OffsetAndMetadata(offset)))
-    }
-
     private fun closeResources(lastException: Exception?) {
         if (lastException != null) {
             log.warn{ "stopped consuming messages due to an error" }
@@ -153,7 +147,6 @@ internal class KafkaReader(
 
     override fun onPartitionsRevoked(partitions: Collection<TopicPartition>) {
         log.info {"partitions revoked: $partitions" }
-        partitions.forEach { it.commitSync() }
     }
 
     internal fun getMetrics() = listOf(KafkaClientMetrics(consumer))
