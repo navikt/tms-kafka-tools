@@ -83,8 +83,8 @@ internal class KafkaReader(
 
         try {
             records.forEach { record ->
-                currentPositions[record.topicPartition()] = record.offset()
                 onRecord(record)
+                currentPositions[record.topicPartition()] = record.offset() + 1
             }
         } catch (err: Exception) {
 
