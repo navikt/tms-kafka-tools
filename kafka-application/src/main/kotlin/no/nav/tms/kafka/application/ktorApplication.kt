@@ -28,7 +28,8 @@ internal fun setupKtorApplication(
     collectorRegistry: CollectorRegistry,
     customizeableModule: Application.() -> Unit,
     onStartup: () -> Unit,
-    onShutdown: () -> Unit
+    onShutdown: () -> Unit,
+    recordBroadcaster: RecordBroadcaster,
 ) = embeddedServer(
     factory = CIO,
     environment = applicationEngineEnvironment {
@@ -37,7 +38,15 @@ internal fun setupKtorApplication(
         }
         module(metaEndpoints(isAliveCheck, collectorRegistry, metrics))
 
-        module(customizeableModule)
+        module {
+            install(MessageChannel) {
+                broadcaster = recordBroadcaster
+            }
+        }
+
+        module {
+            customizeableModule()
+        }
 
         module {
             environment.monitor.subscribe(ApplicationStarted) {
@@ -50,6 +59,8 @@ internal fun setupKtorApplication(
         }
     }
 )
+
+
 
 private fun metaEndpoints(
     isAliveCheck: () -> Boolean,

@@ -1,6 +1,8 @@
 package no.nav.tms.kafka.application
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.ktor.server.application.*
+import io.ktor.util.*
 import io.prometheus.client.CollectorRegistry
 import io.prometheus.client.Counter
 import io.prometheus.client.Histogram
@@ -9,7 +11,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecord
 import kotlin.time.DurationUnit
 import kotlin.time.measureTimedValue
 
-internal class RecordBroadcaster(
+class RecordBroadcaster internal constructor(
     private val subscribers: List<Subscriber>,
     eventNameFields: List<String>
 ) {
