@@ -1,3 +1,3 @@
 rootProject.name = "tms-kafka-tools"
 
-include("kafka-application", "message-replay")
+include("kafka-application", "kafka-message-replay")

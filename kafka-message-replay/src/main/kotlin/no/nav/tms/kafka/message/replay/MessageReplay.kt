@@ -1,5 +1,6 @@
-package no.nav.tms.kafka.application
+package no.nav.tms.kafka.message.replay
 
+import no.nav.tms.kafka.application.RecordBroadcaster
 import org.apache.kafka.common.TopicPartition
 import java.lang.Integer.min
 import java.time.Duration

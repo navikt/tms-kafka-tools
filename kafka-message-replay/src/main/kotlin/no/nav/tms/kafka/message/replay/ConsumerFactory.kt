@@ -1,4 +1,4 @@
-package no.nav.tms.kafka.application
+package no.nav.tms.kafka.message.replay
 
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.consumer.ConsumerConfig

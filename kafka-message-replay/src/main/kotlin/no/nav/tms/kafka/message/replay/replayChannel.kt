@@ -1,5 +1,7 @@
-package no.nav.tms.kafka.application
+package no.nav.tms.kafka.message.replay
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
@@ -7,6 +9,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.util.*
+import no.nav.tms.kafka.application.MessageChannel
 import no.nav.tms.token.support.azure.validation.AzureAuthenticator
 
 
@@ -38,7 +41,11 @@ class ReplayMessageChannel(val config: ReplayChannelConfig) {
 
             application.routing {
                 if (config.requireAuthentication) {
-                    requireNotNull(application.pluginOrNull(Authentication)) { "ReplayMessageChannel must be installed after Authentication" }
+
+                    val authentication = application.pluginOrNull(Authentication)
+
+                    requireNotNull(authentication) { "ReplayMessageChannel must be installed after Authentication" }
+
                     authenticate(config.authenticatorName) {
                         replayChannelApi(messageReplay)
                     }
@@ -57,8 +64,12 @@ class ReplayMessageChannel(val config: ReplayChannelConfig) {
 private fun Route.replayChannelApi(messageReplay: MessageReplay) {
     val log = KotlinLogging.logger {}
 
+    val objectMapper = jacksonObjectMapper()
+
     post("/message/replay") {
-        val request = call.receive<ReplayRequest>()
+        val request = call.receiveText().let {
+            objectMapper.readValue<ReplayRequest>(it)
+        }
 
         log.info { "Processing request to replay messages: $request" }
 
