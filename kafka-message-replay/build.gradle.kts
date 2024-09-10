@@ -78,7 +78,7 @@ publishing {
     publications {
         create<MavenPublication>("gpr") {
             groupId = "no.nav.tms.kafka"
-            artifactId = "message-replay"
+            artifactId = "kafka-message-replay"
             version = libraryVersion
             from(components["java"])
 

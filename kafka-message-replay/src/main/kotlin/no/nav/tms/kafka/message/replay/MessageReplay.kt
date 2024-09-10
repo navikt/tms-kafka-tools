@@ -19,6 +19,8 @@ internal class MessageReplay(
 
         var readRecords = 0
 
+        var foundRequestedRecord = false
+
         consumer.use {
             consumer.assign(listOf(topicPartition))
             consumer.seek(topicPartition, request.offset)
@@ -27,7 +29,13 @@ internal class MessageReplay(
                 val consumerRecords = consumer.poll(Duration.ofSeconds(1))
 
                 if (consumerRecords.isEmpty) {
-                    break
+                    throw EmptyOffsetException("Found no records at or beyond offset")
+                }
+
+                if (consumerRecords.any { it.offset() == request.offset && it.partition() == request.partition }) {
+                    foundRequestedRecord = true
+                } else if (!foundRequestedRecord) {
+                    throw EmptyOffsetException("Retrieved records did not include record at requested offset")
                 }
 
                 consumerRecords.forEach {
@@ -41,3 +49,5 @@ internal class MessageReplay(
         return readRecords
     }
 }
+
+internal class EmptyOffsetException(msg: String): IllegalArgumentException(msg)
