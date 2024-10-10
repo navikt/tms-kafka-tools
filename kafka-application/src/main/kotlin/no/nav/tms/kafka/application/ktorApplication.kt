@@ -28,6 +28,7 @@ internal fun setupKtorApplication(
     collectorRegistry: CollectorRegistry,
     customizeableModule: Application.() -> Unit,
     onStartup: () -> Unit,
+    onReady: () -> Unit,
     onShutdown: () -> Unit
 ) = embeddedServer(
     factory = CIO,
@@ -42,6 +43,10 @@ internal fun setupKtorApplication(
         module {
             environment.monitor.subscribe(ApplicationStarted) {
                 onStartup()
+            }
+
+            environment.monitor.subscribe(ApplicationStarted) {
+                onReady()
             }
 
             environment.monitor.subscribe(ApplicationStopped) {
