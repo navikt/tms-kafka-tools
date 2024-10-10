@@ -22,13 +22,6 @@ class KafkaApplication internal constructor(
 
     fun start() {
         ktor.start(wait = false)
-        try {
-            reader.start()
-        } finally {
-            log.info { "shutting down ktor, waiting $gracePeriod ms for workers to exit. Forcing shutdown after $forcefulShutdownTimeout ms" }
-            ktor.stop(gracePeriod, forcefulShutdownTimeout)
-            log.info { "ktor shutdown complete. goodbye." }
-        }
     }
 
     fun stop() {
@@ -129,6 +122,7 @@ class KafkaApplicationBuilder internal constructor() {
                 customizeableModule = customizableModule,
                 onStartup = startupHook,
                 onShutdown = shutdownHook,
+                onReady = { reader.start() },
                 recordBroadcaster = broadcaster
             )
         )
