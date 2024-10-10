@@ -21,7 +21,7 @@ class KafkaApplication internal constructor(
     private val forcefulShutdownTimeout = 30000L
 
     fun start() {
-        ktor.start(wait = false)
+        ktor.start(wait = true)
     }
 
     fun stop() {
