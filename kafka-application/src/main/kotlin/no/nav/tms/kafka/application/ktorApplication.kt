@@ -45,7 +45,7 @@ internal fun setupKtorApplication(
                 onStartup()
             }
 
-            environment.monitor.subscribe(ApplicationStarted) {
+            environment.monitor.subscribe(ServerReady) {
                 onReady()
             }
 
