@@ -56,8 +56,9 @@ class KafkaApplicationBuilder internal constructor() {
     var httpPort: Int = 8080
 
     private var customizableModule: Application.() -> Unit = { }
-    private var startupHook: () -> Unit = { }
-    private var shutdownHook: () -> Unit = { }
+    private var startupHook: ((Application) -> Unit)? = null
+    private var readyHook: ((ApplicationEnvironment) -> Unit)? = null
+    private var shutdownHook: ((Application) -> Unit)? = null
 
     private val subscribers: MutableList<Subscriber> = mutableListOf()
 
@@ -77,11 +78,15 @@ class KafkaApplicationBuilder internal constructor() {
         subscribers.addAll(subscriber)
     }
 
-    fun onStartup(startupHook: () -> Unit) {
+    fun onStartup(startupHook: (Application) -> Unit) {
         this.startupHook = startupHook
     }
 
-    fun onShutdown(shutdownHook: () -> Unit) {
+    fun onReady(shutdownHook: (ApplicationEnvironment) -> Unit) {
+        this.readyHook = shutdownHook
+    }
+
+    fun onShutdown(shutdownHook: (Application) -> Unit) {
         this.shutdownHook = shutdownHook
     }
 
@@ -120,9 +125,10 @@ class KafkaApplicationBuilder internal constructor() {
                 collectorRegistry = collectorRegistry,
                 isAliveCheck = reader::isRunning,
                 customizeableModule = customizableModule,
+                readerJob = { reader.start() },
                 onStartup = startupHook,
                 onShutdown = shutdownHook,
-                onReady = { reader.start() },
+                onReady = readyHook,
                 recordBroadcaster = broadcaster
             )
         )
