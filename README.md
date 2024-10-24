@@ -209,3 +209,6 @@ Deretter kan en sende POST-kall til endepunktet `/message/replay` med format (ek
 I eksempelet over vil kafka-application forsøke å lese opp til 10 eventer på nytt fra topic 'order-topic-v1', partisjon 0, fra og med offset 500.
 
 Dersom er lavere en tidligste offset, leses 10 eventer derfa. Hvis offsettet er høyere enn seneste offset leses ingen eventer.
+
+
+Som default er dette endepunktet beskyttet med azure-validering.

@@ -25,16 +25,12 @@ dependencies {
 
     implementation(JacksonDatatype.datatypeJsr310)
     implementation(JacksonDatatype.moduleKotlin)
-    implementation(Micrometer.registryPrometheus)
     implementation(Kotlinx.coroutines)
     implementation(KotlinLogging.logging)
     implementation(Kafka.kafka_2_12)
     implementation(Ktor.Server.core)
     implementation(Ktor.Server.cio)
-    implementation(Ktor.Server.metricsMicrometer)
     implementation(Ktor.Server.authJwt)
-    implementation(Prometheus.simpleClient)
-    implementation(Prometheus.common)
     implementation(TmsKtorTokenSupport.azureValidation)
     testImplementation(Awaitility.awaitility)
     testImplementation(Junit.api)
@@ -42,7 +38,6 @@ dependencies {
     testImplementation(KafkaTestContainers.kafka)
     testImplementation(Kotest.assertionsCore)
     testImplementation(Ktor.Test.serverTestHost)
-    testImplementation(TmsKtorTokenSupport.azureValidation)
     testImplementation(TmsKtorTokenSupport.azureValidationMock)
 }
 

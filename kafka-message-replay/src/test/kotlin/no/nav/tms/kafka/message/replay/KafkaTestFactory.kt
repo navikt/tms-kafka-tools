@@ -26,8 +26,6 @@ class KafkaTestFactory(kafkaContainer: KafkaContainer) {
         return KafkaProducer(producerProperties, stringSerializer, stringSerializer)
     }
 
-    fun createAdminClient(): AdminClient = KafkaAdminClient.create(connectionProperties)
-
     private fun localProperties(kafkaContainer: KafkaContainer) = Properties().apply {
         put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.bootstrapServers)
         put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "PLAINTEXT")

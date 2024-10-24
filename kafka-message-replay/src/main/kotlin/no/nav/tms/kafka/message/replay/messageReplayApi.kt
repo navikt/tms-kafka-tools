@@ -22,7 +22,7 @@ class ReplayApiConfig {
     var environment: Map<String, String> = System.getenv()
 }
 
-class MessageReplayApi(val config: ReplayApiConfig) {
+class MessageReplayApi {
 
     companion object : BaseApplicationPlugin<Application, ReplayApiConfig, MessageReplayApi> {
 
@@ -58,7 +58,7 @@ class MessageReplayApi(val config: ReplayApiConfig) {
             }
 
 
-            return MessageReplayApi(config)
+            return MessageReplayApi()
         }
     }
 }
