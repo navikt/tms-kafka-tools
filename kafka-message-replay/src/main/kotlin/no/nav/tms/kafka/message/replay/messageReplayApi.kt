@@ -11,60 +11,59 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.util.*
-import io.ktor.util.pipeline.*
 import no.nav.tms.kafka.application.MessageChannel
 import no.nav.tms.token.support.azure.validation.AzureAuthenticator
 
 
-class ReplayChannelConfig {
+class ReplayApiConfig {
     var requireAuthentication = true
     var authenticatorName = AzureAuthenticator.name
     var enableKafkaSsl = true
     var environment: Map<String, String> = System.getenv()
 }
 
-class ReplayMessageChannel(val config: ReplayChannelConfig) {
+class MessageReplayApi(val config: ReplayApiConfig) {
 
-    companion object : BaseApplicationPlugin<Application, ReplayChannelConfig, ReplayMessageChannel> {
+    companion object : BaseApplicationPlugin<Application, ReplayApiConfig, MessageReplayApi> {
 
-        override val key: AttributeKey<ReplayMessageChannel> = AttributeKey("BackdoorChannel")
-        override fun install(application: Application, configure: ReplayChannelConfig.() -> Unit): ReplayMessageChannel {
-            val config = ReplayChannelConfig().apply(configure)
+        override val key: AttributeKey<MessageReplayApi> = AttributeKey("MessageReplay")
+        override fun install(pipeline: Application, configure: ReplayApiConfig.() -> Unit): MessageReplayApi {
+            val config = ReplayApiConfig().apply(configure)
 
             val consumerFactory = ConsumerFactory.init(
                 config.enableKafkaSsl,
                 config.environment
             )
 
-            requireNotNull(application.pluginOrNull(MessageChannel)) { "ReplayMessageChannel must be installed in a kafka-application app." }
+            requireNotNull(pipeline.pluginOrNull(MessageChannel)) { "ReplayMessageChannel must be installed in a kafka-application app." }
 
-            val broadcaster = application.plugin(MessageChannel).channel.broadcaster
+            val broadcaster = pipeline.plugin(MessageChannel).channel.broadcaster
 
             val messageReplay = MessageReplay(broadcaster, consumerFactory)
 
-            application.routing {
+            pipeline.routing {
                 if (config.requireAuthentication) {
 
-                    val authentication = application.pluginOrNull(Authentication)
+                    val authentication = pipeline.pluginOrNull(Authentication)
 
                     requireNotNull(authentication) { "ReplayMessageChannel must be installed after Authentication" }
 
                     authenticate(config.authenticatorName) {
-                        replayChannelApi(messageReplay)
+                        replayMessageApi(messageReplay)
                     }
                 } else {
-                    replayChannelApi(messageReplay)
+                    replayMessageApi(messageReplay)
                 }
 
             }
 
 
-            return ReplayMessageChannel(config)
+            return MessageReplayApi(config)
         }
     }
 }
 
-private fun Route.replayChannelApi(messageReplay: MessageReplay) {
+private fun Route.replayMessageApi(messageReplay: MessageReplay) {
     val log = KotlinLogging.logger {}
 
     val objectMapper = jacksonObjectMapper()

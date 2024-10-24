@@ -21,12 +21,6 @@ kotlin {
 }
 
 dependencies {
-    constraints {
-        implementation("org.apache.zookeeper:zookeeper:3.9.2") {
-            because("CWE-639: Authorization Bypass Through User-Controlled Key")
-        }
-    }
-
     implementation(project(":kafka-application"))
 
     implementation(JacksonDatatype.datatypeJsr310)
@@ -49,6 +43,7 @@ dependencies {
     testImplementation(Kotest.assertionsCore)
     testImplementation(Ktor.Test.serverTestHost)
     testImplementation(TmsKtorTokenSupport.azureValidation)
+    testImplementation(TmsKtorTokenSupport.azureValidationMock)
 }
 
 tasks {

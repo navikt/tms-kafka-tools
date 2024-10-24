@@ -31,7 +31,7 @@ class KafkaApplication internal constructor(
         }
     }
 
-    internal fun stop() {
+    fun stop() {
         reader.stop()
         ktor.stop(gracePeriod, forcefulShutdownTimeout)
     }
