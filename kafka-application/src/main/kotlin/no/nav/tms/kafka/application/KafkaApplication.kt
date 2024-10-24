@@ -31,7 +31,7 @@ class KafkaApplication internal constructor(
         }
     }
 
-    internal fun stop() {
+    fun stop() {
         reader.stop()
         ktor.stop(gracePeriod, forcefulShutdownTimeout)
     }
@@ -105,6 +105,8 @@ class KafkaApplicationBuilder internal constructor() {
     internal fun build(): KafkaApplication {
         val config = requireNotNull(readerConfig) { "Kafka configuration must be defined" }
 
+        val broadcaster = RecordBroadcaster(subscribers, config.eventNameFields)
+
         val reader = KafkaReader(
             factory = ConsumerFactory.init(
                 clientId = config.clientId,
@@ -114,7 +116,7 @@ class KafkaApplicationBuilder internal constructor() {
             ),
             groupId = config.groupId,
             kafkaTopics = config.kafkaTopics,
-            broadcaster = RecordBroadcaster(subscribers, config.eventNameFields)
+            broadcaster = broadcaster
         )
 
         return KafkaApplication(
@@ -127,6 +129,7 @@ class KafkaApplicationBuilder internal constructor() {
                 customizeableModule = customizableModule,
                 onStartup = startupHook,
                 onShutdown = shutdownHook,
+                recordBroadcaster = broadcaster
             )
         )
     }

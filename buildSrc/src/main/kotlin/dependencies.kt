@@ -82,6 +82,8 @@ object Ktor {
         override val groupId get() = Ktor.groupId
         override val version get() = Ktor.version
 
+        val auth get() = dependency("ktor-server-auth")
+        val authJwt get() = dependency("ktor-server-auth-jwt")
         val core get() = dependency("ktor-server-core")
         val cio get() = dependency("ktor-server-cio")
         val metricsMicrometer get() = dependency("ktor-server-metrics-micrometer")
@@ -109,3 +111,12 @@ object Prometheus: DependencyGroup {
     val common get() = dependency("simpleclient_common")
     val simpleClient get() = dependency("simpleclient")
 }
+
+object TmsKtorTokenSupport: DependencyGroup {
+    override val groupId get() = "no.nav.tms.token.support"
+    override val version get() = "4.1.2"
+
+    val azureValidation get() = dependency("azure-validation")
+    val azureValidationMock get() = dependency("azure-validation-mock")
+}
+
