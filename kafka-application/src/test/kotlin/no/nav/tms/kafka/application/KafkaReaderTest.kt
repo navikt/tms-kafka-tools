@@ -68,7 +68,7 @@ class KafkaReaderTest {
         val reader = runTestReader()
 
         shouldNotThrowAny {
-            reader.start(wait = false)
+            reader.start()
         }
         reader.isRunning() shouldBe true
     }
@@ -524,7 +524,7 @@ class KafkaReaderTest {
 
         kafkaReaders.add(reader)
 
-        reader.start(wait = false)
+        reader.start()
 
         if (waitUpToSeconds > 0) {
             Awaitility.await("wait until reader has started")

@@ -59,6 +59,8 @@ class MessageBroadcaster(
     private val subscribers: List<Subscriber>,
     eventNameFields: List<String> = listOf(JsonMessage.DEFAULT_EVENT_NAME)
 ) {
+    constructor(vararg subscriber: Subscriber, eventNameFields: List<String> = listOf(JsonMessage.DEFAULT_EVENT_NAME)) : this(subscriber.toList(), eventNameFields)
+
     private val messageBuilder: JsonMessageBuilder = JsonMessageBuilder(eventNameFields)
 
     fun broadcastRecord(record: ConsumerRecord<String, String>) {
