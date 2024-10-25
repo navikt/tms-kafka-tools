@@ -29,16 +29,10 @@ internal class KafkaReader(
 
     fun isRunning() = job.isActive
 
-    fun start(wait: Boolean = true) {
+    fun start() {
         log.info { "starting kafka reader" }
 
         job.start()
-
-        if (wait) {
-            runBlocking {
-                job.join()
-            }
-        }
     }
 
     fun stop() = runBlocking {

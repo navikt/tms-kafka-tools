@@ -1,5 +1,6 @@
 package no.nav.tms.kafka.application
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
@@ -27,9 +28,11 @@ internal fun setupKtorApplication(
     metrics: List<MeterBinder>,
     collectorRegistry: CollectorRegistry,
     customizeableModule: Application.() -> Unit,
-    onStartup: () -> Unit,
-    onShutdown: () -> Unit,
-    recordBroadcaster: RecordBroadcaster,
+    readerJob: () -> Unit,
+    onStartup: ((Application) -> Unit)?,
+    onReady: ((ApplicationEnvironment) -> Unit)?,
+    onShutdown: ((Application) -> Unit)?,
+    recordBroadcaster: RecordBroadcaster
 ) = embeddedServer(
     factory = CIO,
     environment = applicationEngineEnvironment {
@@ -49,16 +52,44 @@ internal fun setupKtorApplication(
         }
 
         module {
-            environment.monitor.subscribe(ApplicationStarted) {
-                onStartup()
+
+            environment.monitor.subscribe(ServerReady) {
+                readerJob()
             }
 
-            environment.monitor.subscribe(ApplicationStopped) {
-                onShutdown()
+            onStartup?.let {
+                environment.monitor.subscribe(ApplicationStarted) {
+                    it.runHook("onStartup", onStartup)
+                }
+            }
+
+            onReady?.let {
+                environment.monitor.subscribe(ServerReady) {
+                    it.runHook("onReady", onReady)
+                }
+            }
+
+            onShutdown?.let {
+                environment.monitor.subscribe(ApplicationStopped) {
+                    it.runHook("onShutdown", onShutdown)
+                }
             }
         }
     }
 )
+
+private val log = KotlinLogging.logger {}
+private val secureLog = KotlinLogging.logger("secureLog")
+
+private fun <T> T.runHook(eventHook: String, block: (T) -> Unit) {
+    log.info { "Executing user-defined hook '$eventHook'" }
+    try {
+        block(this)
+    } catch (e: Exception) {
+        log.error { "Encountered error while executing user-defined event hook '$eventHook'" }
+        secureLog.error(e) { "Encountered error while executing user-defined event hook '$eventHook'" }
+    }
+}
 
 
 

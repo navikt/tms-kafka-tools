@@ -9,6 +9,7 @@ import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.producer.KafkaProducer
@@ -20,8 +21,12 @@ import org.junit.jupiter.api.TestInstance
 import org.testcontainers.containers.KafkaContainer
 import org.testcontainers.utility.DockerImageName
 import java.net.ServerSocket
+import java.time.Duration
+import java.time.Instant
+import java.time.ZonedDateTime
 import java.util.UUID
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -70,7 +75,10 @@ class KafkaApplicationIT {
             }
         }
 
-        val application = setupApplication(stateHolder, greenBeadCounter, ktorApi)
+        // Mock some init job (flyway migration etc..)
+        val initializatinJob = MockInitialization()
+
+        val application = setupApplication(stateHolder, greenBeadCounter, ktorApi, initializatinJob)
 
         // Start application and verify startup hook
 
@@ -79,6 +87,17 @@ class KafkaApplicationIT {
         launch(Dispatchers.IO) {
             application.start()
         }
+
+        await("Wait for init job to start")
+            .atMost(5, TimeUnit.SECONDS)
+            .until(initializatinJob::started)
+
+        stateHolder.state shouldBe TestState.Starting
+        application.isRunning() shouldBe false
+
+        // Complete initialization step and verify onReady hook
+
+        initializatinJob.complete()
 
         await("Wait for app to start")
             .atMost(5, TimeUnit.SECONDS)
@@ -133,7 +152,8 @@ class KafkaApplicationIT {
     private fun setupApplication(
         stateHolder: TestStateHolder,
         subscriber: Subscriber,
-        ktorModule: Application.() -> Unit
+        ktorModule: Application.() -> Unit,
+        initializatinJob: MockInitialization
     ) = KafkaApplication.build {
 
         kafkaConfig {
@@ -146,6 +166,11 @@ class KafkaApplicationIT {
         httpPort = testClient.port
 
         onStartup {
+            stateHolder.state = TestState.Starting
+            initializatinJob.start()
+        }
+
+        onReady {
             stateHolder.state = TestState.Running
         }
 
@@ -173,6 +198,28 @@ class KafkaApplicationIT {
     }
 }
 
+private class MockInitialization {
+    var started = false
+    private var isDone = false
+
+    private val failAfter = Duration.ofSeconds(5)
+
+    fun start() = runBlocking {
+        started = true
+        val start = Instant.now()
+        while (!isDone) {
+            if (Instant.now() > start + failAfter) {
+                throw TimeoutException("Failed to complete within $failAfter seconds.")
+            }
+            delay(50)
+        }
+    }
+
+    fun complete() {
+        isDone = true
+    }
+}
+
 private class TestClient {
 
     val port = ServerSocket(0).use { it.localPort }
@@ -189,5 +236,5 @@ private data class TestStateHolder(
 )
 
 private enum class TestState {
-    Waiting, Running, Stopped
+    Waiting, Starting, Running, Stopped
 }
