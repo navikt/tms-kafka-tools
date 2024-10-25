@@ -162,3 +162,53 @@ Feil som oppstår under lesing fra kafka behandles ulikt basert på årsak:
  - Hvis det ligger inhhold på feil format (E.G. feilaktig json eller binærdata) på kafka-topicet vil appen hoppe over disse eventene. 
  - Hvis en Subscriber kaster et MessageException vil dette logges og appen lese videre.
  - Hvis det kastes en uventet exception vil appen stoppe videre lesing fra kafka. 
+
+### Message channel
+
+Kafka-application eksponerer sin broadcast-channel via plugin `MessageChannel` som kan hentes fra Ktors `Application` som følger: `application.plugin(MessageChannel).channel.broadcaster`. 
+
+Denne kan en bruke som en 'bakdør' til å sende eventer til alle insallerte subscribere programatisk, uten at det kommer fra kafka.
+
+I skrivende stund godtar `RecordBroadcaster` kun `ConsumerRecords`.
+
+Eksempel:
+
+```kotlin
+fun Application.example() {
+    val broadCaster = plugin(MessageChannel).channel.broadcaster
+    
+    val broadcaster.broadcastRecord(...)
+}
+```
+
+### Message replay
+
+Biblioteket tilbyr også en måte å repetere bestemte kafka-eventer uten å måtte spille av alt på nytt fra starten eller et gitt offset.
+
+Dette gjør en ved å installere plugin `MessageReplayApi`: 
+
+```kotlin
+fun Application.setup() {
+    install(MessageReplayApi) {
+        requireAuthentication = false   
+    }
+}
+```
+
+Deretter kan en sende POST-kall til endepunktet `/message/replay` med format (eksempeldata):
+
+```json
+{
+  "topic": "order-topic-v1",
+  "partition": 0,
+  "offset":  500,
+  "count": 10
+}
+```
+
+I eksempelet over vil kafka-application forsøke å lese opp til 10 eventer på nytt fra topic 'order-topic-v1', partisjon 0, fra og med offset 500.
+
+Dersom er lavere en tidligste offset, leses 10 eventer derfa. Hvis offsettet er høyere enn seneste offset leses ingen eventer.
+
+
+Som default er dette endepunktet beskyttet med azure-validering.
