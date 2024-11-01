@@ -23,7 +23,6 @@ private const val isReadyEndpoint = "/isready"
 private const val metricsEndpoint = "/metrics"
 
 internal fun setupKtorApplication(
-    isAliveCheck: () -> Boolean,
     port: Int = 8080,
     metrics: List<MeterBinder>,
     collectorRegistry: CollectorRegistry,
@@ -32,6 +31,7 @@ internal fun setupKtorApplication(
     onStartup: ((Application) -> Unit)?,
     onReady: ((ApplicationEnvironment) -> Unit)?,
     onShutdown: ((Application) -> Unit)?,
+    healthChecks: List<() -> AppHealth>,
     recordBroadcaster: RecordBroadcaster
 ) = embeddedServer(
     factory = CIO,
@@ -39,7 +39,7 @@ internal fun setupKtorApplication(
         connector {
             this.port = port
         }
-        module(metaEndpoints(isAliveCheck, collectorRegistry, metrics))
+        module(metaEndpoints(healthChecks, collectorRegistry, metrics))
 
         module {
             install(MessageChannel) {
@@ -94,7 +94,7 @@ private fun <T> T.runHook(eventHook: String, block: (T) -> Unit) {
 
 
 private fun metaEndpoints(
-    isAliveCheck: () -> Boolean,
+    healthChecks: List<() -> AppHealth>,
     collectorRegistry: CollectorRegistry,
     metrics: List<MeterBinder>
 ): Application.() -> Unit = {
@@ -105,7 +105,7 @@ private fun metaEndpoints(
     }
     routing {
         get(isAliveEndpoint) {
-            if (isAliveCheck()) {
+            if (healthChecks.all { it() == AppHealth.Healthy }) {
                 call.respond(HttpStatusCode.OK)
             } else {
                 call.respond(HttpStatusCode.ServiceUnavailable)

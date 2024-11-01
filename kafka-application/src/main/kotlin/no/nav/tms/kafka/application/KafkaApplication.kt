@@ -60,6 +60,8 @@ class KafkaApplicationBuilder internal constructor() {
     private var readyHook: ((ApplicationEnvironment) -> Unit)? = null
     private var shutdownHook: ((Application) -> Unit)? = null
 
+    private val healthChecks: MutableList<() -> AppHealth> = mutableListOf()
+
     private val subscribers: MutableList<Subscriber> = mutableListOf()
 
     private var collectorRegistry: CollectorRegistry = CollectorRegistry.defaultRegistry
@@ -82,8 +84,8 @@ class KafkaApplicationBuilder internal constructor() {
         this.startupHook = startupHook
     }
 
-    fun onReady(shutdownHook: (ApplicationEnvironment) -> Unit) {
-        this.readyHook = shutdownHook
+    fun onReady(readyHook: (ApplicationEnvironment) -> Unit) {
+        this.readyHook = readyHook
     }
 
     fun onShutdown(shutdownHook: (Application) -> Unit) {
@@ -96,11 +98,16 @@ class KafkaApplicationBuilder internal constructor() {
             .build()
     }
 
+    fun healthCheck(checkFunction: () -> AppHealth) {
+        healthChecks.add(checkFunction)
+    }
+
     private fun uncaughtExceptionHandler(thread: Thread, err: Throwable) {
         log.error(err) { "Uncaught exception in thread ${thread.name}: ${err.message}" }
     }
 
     internal fun build(): KafkaApplication {
+
         val config = requireNotNull(readerConfig) { "Kafka configuration must be defined" }
 
         val broadcaster = RecordBroadcaster(subscribers, config.eventNameFields)
@@ -117,18 +124,28 @@ class KafkaApplicationBuilder internal constructor() {
             broadcaster = broadcaster
         )
 
+        val readerHealthCheck = {
+            if (reader.isRunning()) {
+                AppHealth.Healthy
+            } else {
+                AppHealth.Unhealthy
+            }
+        }
+
+        healthChecks.add(readerHealthCheck)
+
         return KafkaApplication(
             reader = reader,
             ktor = setupKtorApplication(
                 port = httpPort,
                 metrics = reader.getMetrics(),
                 collectorRegistry = collectorRegistry,
-                isAliveCheck = reader::isRunning,
                 customizeableModule = customizableModule,
                 readerJob = { reader.start() },
                 onStartup = startupHook,
                 onShutdown = shutdownHook,
                 onReady = readyHook,
+                healthChecks = healthChecks,
                 recordBroadcaster = broadcaster
             )
         )
@@ -197,3 +214,7 @@ internal class KafkaReaderConfig(
     val properties: Properties,
     val eventNameFields: List<String>
 )
+
+enum class AppHealth {
+    Healthy, Unhealthy
+}
