@@ -60,7 +60,7 @@ class KafkaApplicationBuilder internal constructor() {
     private var readyHook: ((ApplicationEnvironment) -> Unit)? = null
     private var shutdownHook: ((Application) -> Unit)? = null
 
-    private val healthChecks: MutableList<() -> AppHealth> = mutableListOf()
+    private val healthChecks: MutableList<HealthCheck> = mutableListOf()
 
     private val subscribers: MutableList<Subscriber> = mutableListOf()
 
@@ -98,8 +98,8 @@ class KafkaApplicationBuilder internal constructor() {
             .build()
     }
 
-    fun healthCheck(checkFunction: () -> AppHealth) {
-        healthChecks.add(checkFunction)
+    fun healthCheck(name: String? = null, checkFunction: () -> AppHealth) {
+        healthChecks.add(HealthCheck.create(name, checkFunction))
     }
 
     private fun uncaughtExceptionHandler(thread: Thread, err: Throwable) {
@@ -124,7 +124,7 @@ class KafkaApplicationBuilder internal constructor() {
             broadcaster = broadcaster
         )
 
-        val readerHealthCheck = {
+        val readerHealthCheck = HealthCheck.create("Kafka reader is running") {
             if (reader.isRunning()) {
                 AppHealth.Healthy
             } else {
@@ -214,6 +214,21 @@ internal class KafkaReaderConfig(
     val properties: Properties,
     val eventNameFields: List<String>
 )
+
+internal class HealthCheck(
+    val name: String,
+    val checkFunction: () -> AppHealth
+) {
+    companion object {
+        private var healthCheckId = 1
+
+        fun create(name: String?, checkFunction: () -> AppHealth): HealthCheck {
+            val checkName = name ?: "Unnamed healthcheck ${healthCheckId++}"
+
+            return HealthCheck(checkName, checkFunction)
+        }
+    }
+}
 
 enum class AppHealth {
     Healthy, Unhealthy
