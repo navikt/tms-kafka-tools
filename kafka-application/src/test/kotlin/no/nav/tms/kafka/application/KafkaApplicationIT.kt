@@ -137,6 +137,14 @@ class KafkaApplicationIT {
 
         testClient.get("/count").bodyAsText() shouldBe "20"
 
+        // Test health
+
+        testClient.get("/isalive").status shouldBe HttpStatusCode.OK
+
+        stateHolder.healthy = false
+
+        testClient.get("/isalive").status shouldBe HttpStatusCode.ServiceUnavailable
+
         // Stop application and verify shutdown
 
         application.stop()
@@ -180,6 +188,14 @@ class KafkaApplicationIT {
 
         subscriber {
             subscriber
+        }
+
+        healthCheck {
+            if (stateHolder.healthy) {
+                AppHealth.Healthy
+            } else {
+                AppHealth.Unhealthy
+            }
         }
 
         ktorModule(ktorModule)
@@ -231,6 +247,7 @@ private class TestClient {
 }
 
 private data class TestStateHolder(
+    var healthy: Boolean = true,
     var state: TestState = TestState.Waiting,
     var greenBeads: Int = 0
 )

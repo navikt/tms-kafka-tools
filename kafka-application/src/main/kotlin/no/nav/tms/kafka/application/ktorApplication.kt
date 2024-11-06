@@ -23,7 +23,6 @@ private const val isReadyEndpoint = "/isready"
 private const val metricsEndpoint = "/metrics"
 
 internal fun setupKtorApplication(
-    isAliveCheck: () -> Boolean,
     port: Int = 8080,
     metrics: List<MeterBinder>,
     collectorRegistry: CollectorRegistry,
@@ -32,6 +31,7 @@ internal fun setupKtorApplication(
     onStartup: ((Application) -> Unit)?,
     onReady: ((ApplicationEnvironment) -> Unit)?,
     onShutdown: ((Application) -> Unit)?,
+    healthChecks: List<HealthCheck>,
     recordBroadcaster: RecordBroadcaster
 ) = embeddedServer(
     factory = CIO,
@@ -39,7 +39,7 @@ internal fun setupKtorApplication(
         connector {
             this.port = port
         }
-        module(metaEndpoints(isAliveCheck, collectorRegistry, metrics))
+        module(metaEndpoints(healthChecks, collectorRegistry, metrics))
 
         module {
             install(MessageChannel) {
@@ -78,23 +78,21 @@ internal fun setupKtorApplication(
     }
 )
 
-private val log = KotlinLogging.logger {}
+private val logger = KotlinLogging.logger {}
 private val secureLog = KotlinLogging.logger("secureLog")
 
 private fun <T> T.runHook(eventHook: String, block: (T) -> Unit) {
-    log.info { "Executing user-defined hook '$eventHook'" }
+    logger.info { "Executing user-defined hook '$eventHook'" }
     try {
         block(this)
     } catch (e: Exception) {
-        log.error { "Encountered error while executing user-defined event hook '$eventHook'" }
+        logger.error { "Encountered error while executing user-defined event hook '$eventHook'" }
         secureLog.error(e) { "Encountered error while executing user-defined event hook '$eventHook'" }
     }
 }
 
-
-
 private fun metaEndpoints(
-    isAliveCheck: () -> Boolean,
+    healthChecks: List<HealthCheck>,
     collectorRegistry: CollectorRegistry,
     metrics: List<MeterBinder>
 ): Application.() -> Unit = {
@@ -105,9 +103,13 @@ private fun metaEndpoints(
     }
     routing {
         get(isAliveEndpoint) {
-            if (isAliveCheck()) {
+            val failingTests = healthChecks.filter { it.checkFunction() == AppHealth.Unhealthy }
+
+            if (failingTests.isEmpty()) {
                 call.respond(HttpStatusCode.OK)
             } else {
+                val names = failingTests.map { "'${it.name}'" }
+                logger.info { "Application is unhealthy due to failing health checks: $names" }
                 call.respond(HttpStatusCode.ServiceUnavailable)
             }
         }
