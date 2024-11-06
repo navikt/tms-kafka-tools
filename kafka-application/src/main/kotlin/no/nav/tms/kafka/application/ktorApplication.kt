@@ -109,7 +109,7 @@ private fun metaEndpoints(
                 call.respond(HttpStatusCode.OK)
             } else {
                 val names = failingTests.map { "'${it.name}'" }
-                logger.info { "Application is unhealthy due to failing health checks: [$names]" }
+                logger.info { "Application is unhealthy due to failing health checks: $names" }
                 call.respond(HttpStatusCode.ServiceUnavailable)
             }
         }
