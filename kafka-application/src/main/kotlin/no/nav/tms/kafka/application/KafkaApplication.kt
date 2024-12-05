@@ -8,7 +8,7 @@ import java.net.InetAddress
 import java.util.*
 
 class KafkaApplication internal constructor(
-    private val ktor: ApplicationEngine,
+    private val ktor: KtorServer,
     private val reader: KafkaReader
 ) {
     init {
@@ -163,9 +163,6 @@ class KafkaReaderConfigBuilder internal constructor() {
         eventNameFields.addAll(fieldNames)
     }
 
-    @Deprecated("Use function eventNameFields()", replaceWith = ReplaceWith("this.eventNameFields()"))
-    var eventName: String? = null
-
     var groupId: String? = null
     var enableSSL: Boolean = true
     var environment: Map<String, String> = System.getenv()
@@ -179,8 +176,6 @@ class KafkaReaderConfigBuilder internal constructor() {
 
         val nameFields = if (eventNameFields.isNotEmpty()) {
             eventNameFields
-        } else if (eventName != null) {
-            listOf(eventName!!)
         } else {
             listOf(JsonMessage.DEFAULT_EVENT_NAME)
         }

@@ -14,7 +14,7 @@ import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
 import org.awaitility.Awaitility
 import org.junit.jupiter.api.*
-import org.testcontainers.containers.KafkaContainer
+import org.testcontainers.kafka.ConfluentKafkaContainer
 import org.testcontainers.shaded.org.awaitility.Awaitility.await
 import org.testcontainers.utility.DockerImageName
 import java.time.Duration
@@ -29,7 +29,7 @@ class KafkaReaderTest {
 
     private lateinit var consumerFactory: ConsumerFactory
 
-    private val kafkaContainer = KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.2.1"))
+    private val kafkaContainer = ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.8.0"))
 
     private lateinit var producer: KafkaProducer<String, String>
     private lateinit var adminClient: AdminClient

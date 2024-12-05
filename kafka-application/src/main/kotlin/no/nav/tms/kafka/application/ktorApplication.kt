@@ -33,50 +33,51 @@ internal fun setupKtorApplication(
     onShutdown: ((Application) -> Unit)?,
     healthChecks: List<HealthCheck>,
     recordBroadcaster: RecordBroadcaster
-) = embeddedServer(
+): KtorServer = embeddedServer(
     factory = CIO,
-    environment = applicationEngineEnvironment {
+    configure = {
         connector {
             this.port = port
         }
-        module(metaEndpoints(healthChecks, collectorRegistry, metrics))
+    },
+    module = {
+        // Setup /isalive, /isready and /metrics
+        metaEndpoints(healthChecks, collectorRegistry, metrics)
 
-        module {
-            install(MessageChannel) {
-                broadcaster = recordBroadcaster
+        // Setup MessageChannel
+        install(MessageChannel) {
+            broadcaster = recordBroadcaster
+        }
+
+        // Apply user-defined module
+        customizeableModule()
+
+        // Setup lifecycle hooks
+        monitor.subscribe(ServerReady) {
+            readerJob()
+        }
+
+        onStartup?.let {
+            monitor.subscribe(ApplicationStarted) {
+                it.runHook("onStartup", onStartup)
             }
         }
 
-        module {
-            customizeableModule()
+        onReady?.let {
+            monitor.subscribe(ServerReady) {
+                it.runHook("onReady", onReady)
+            }
         }
 
-        module {
-
-            environment.monitor.subscribe(ServerReady) {
-                readerJob()
-            }
-
-            onStartup?.let {
-                environment.monitor.subscribe(ApplicationStarted) {
-                    it.runHook("onStartup", onStartup)
-                }
-            }
-
-            onReady?.let {
-                environment.monitor.subscribe(ServerReady) {
-                    it.runHook("onReady", onReady)
-                }
-            }
-
-            onShutdown?.let {
-                environment.monitor.subscribe(ApplicationStopped) {
-                    it.runHook("onShutdown", onShutdown)
-                }
+        onShutdown?.let {
+            monitor.subscribe(ApplicationStopped) {
+                it.runHook("onShutdown", onShutdown)
             }
         }
     }
 )
+
+internal typealias KtorServer = EmbeddedServer<out ApplicationEngine, out ApplicationEngine.Configuration>
 
 private val logger = KotlinLogging.logger {}
 private val secureLog = KotlinLogging.logger("secureLog")
@@ -91,11 +92,11 @@ private fun <T> T.runHook(eventHook: String, block: (T) -> Unit) {
     }
 }
 
-private fun metaEndpoints(
+private fun Application.metaEndpoints(
     healthChecks: List<HealthCheck>,
     collectorRegistry: CollectorRegistry,
     metrics: List<MeterBinder>
-): Application.() -> Unit = {
+) {
     install(MicrometerMetrics) {
         registry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT, collectorRegistry, Clock.SYSTEM)
         meterBinders = meterBinders + metrics

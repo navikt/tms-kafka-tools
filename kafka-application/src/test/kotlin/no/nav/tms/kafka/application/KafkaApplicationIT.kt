@@ -18,12 +18,11 @@ import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import org.testcontainers.containers.KafkaContainer
+import org.testcontainers.kafka.ConfluentKafkaContainer
 import org.testcontainers.utility.DockerImageName
 import java.net.ServerSocket
 import java.time.Duration
 import java.time.Instant
-import java.time.ZonedDateTime
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
@@ -38,7 +37,7 @@ class KafkaApplicationIT {
     private val kafkaEnv: Map<String, String> by lazy {
         mapOf("KAFKA_BROKERS" to kafkaContainer.bootstrapServers)
     }
-    private val kafkaContainer = KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.2.1"))
+    private val kafkaContainer = ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.8.0"))
     private lateinit var producer: KafkaProducer<String, String>
 
     private val testClient = TestClient()
