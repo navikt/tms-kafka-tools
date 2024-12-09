@@ -3,9 +3,9 @@ package no.nav.tms.kafka.application
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
 import io.ktor.util.*
-import io.prometheus.client.CollectorRegistry
-import io.prometheus.client.Counter
-import io.prometheus.client.Histogram
+import io.prometheus.metrics.core.metrics.Counter
+import io.prometheus.metrics.core.metrics.Histogram
+import io.prometheus.metrics.model.registry.PrometheusRegistry
 import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import kotlin.time.DurationUnit
@@ -24,18 +24,18 @@ class RecordBroadcaster internal constructor(
         try {
             messageBuilder.fromRecord(record).let {
                 broadcastMessage(it)
-                Metrics.onValidEventCounter.labels(record.topic(), it.eventName).inc()
+                Metrics.onValidEventCounter.labelValues(record.topic(), it.eventName).inc()
             }
         } catch (e: JsonException) {
-            Metrics.onInvalidEventCounter.labels(record.topic(), "invalid_json").inc()
+            Metrics.onInvalidEventCounter.labelValues(record.topic(), "invalid_json").inc()
             log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because value is not valid json" }
             secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because value is not valid json" }
         } catch (e: MessageFormatException) {
-            Metrics.onInvalidEventCounter.labels(record.topic(), "missing_name").inc()
+            Metrics.onInvalidEventCounter.labelValues(record.topic(), "missing_name").inc()
             log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name' or its alternative" }
             secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name' or its alternative" }
         }  catch (nullpointer: NullPointerException){
-            Metrics.onInvalidEventCounter.labels(record.topic(), "nullpointer").inc()
+            Metrics.onInvalidEventCounter.labelValues(record.topic(), "nullpointer").inc()
             log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null'" }
             secureLog.warn(nullpointer) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null'" }
         }
@@ -46,10 +46,10 @@ class RecordBroadcaster internal constructor(
             measureTimedValue {
                 subscriber.onMessage(jsonMessage)
             }.let { (result, duration) ->
-                Metrics.onMessageCounter.labels(subscriber.name(), jsonMessage.eventName, result.toString())
+                Metrics.onMessageCounter.labelValues(subscriber.name(), jsonMessage.eventName, result.toString())
                     .inc()
 
-                Metrics.onMessageHistorgram.labels(subscriber.name(), jsonMessage.eventName, result.toString())
+                Metrics.onMessageHistorgram.labelValues(subscriber.name(), jsonMessage.eventName, result.toString())
                     .observe(duration.toDouble(DurationUnit.SECONDS))
             }
         }
@@ -85,27 +85,27 @@ class MessageBroadcaster(
 class MessageException(message: String): IllegalArgumentException(message)
 
 private object Metrics {
-    private val registry = CollectorRegistry.defaultRegistry
+    private val registry = PrometheusRegistry.defaultRegistry
 
-    val onMessageHistorgram = Histogram.build()
+    val onMessageHistorgram = Histogram.builder()
         .name("kafka_message_processing_time_s")
         .help("Hvor lang det tar for en subscriber å prosessere melding i sekunder")
         .labelNames("subscriber", "event_name", "result")
         .register(registry)
 
-    val onMessageCounter = Counter.build()
+    val onMessageCounter = Counter.builder()
         .name("kafka_message_counter")
         .help("Hvor mange ganger en subscriber har akseptert eller ignorert en melding.")
         .labelNames("subscriber", "event_name", "result")
         .register(registry)
 
-    val onValidEventCounter = Counter.build()
+    val onValidEventCounter = Counter.builder()
         .name("kafka_valid_event_counter")
         .help("Hvor mange gyldige eventer som er lest fra kafka")
         .labelNames("topic", "event_name")
         .register(registry)
 
-    val onInvalidEventCounter = Counter.build()
+    val onInvalidEventCounter = Counter.builder()
         .name("kafka_invalid_event_counter")
         .help("Hvor mange ugyldige eventer som er lest fra kafka")
         .labelNames("topic", "reason")

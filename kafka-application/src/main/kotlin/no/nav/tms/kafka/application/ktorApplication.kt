@@ -1,22 +1,21 @@
 package no.nav.tms.kafka.application
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
+import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.cio.*
 import io.ktor.server.engine.*
-import io.ktor.server.metrics.micrometer.MicrometerMetrics
-import io.ktor.server.response.respond
-import io.ktor.server.response.respondTextWriter
+import io.ktor.server.metrics.micrometer.*
+import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.micrometer.core.instrument.Clock
 import io.micrometer.core.instrument.Metrics.addRegistry
 import io.micrometer.core.instrument.binder.MeterBinder
-import io.micrometer.prometheus.PrometheusConfig
-import io.micrometer.prometheus.PrometheusMeterRegistry
-import io.prometheus.client.CollectorRegistry
-import io.prometheus.client.exporter.common.TextFormat
+import io.micrometer.prometheusmetrics.PrometheusConfig
+import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
+import io.prometheus.metrics.expositionformats.ExpositionFormats
+import io.prometheus.metrics.model.registry.MetricNameFilter
+import io.prometheus.metrics.model.registry.PrometheusRegistry
 
 private const val isAliveEndpoint = "/isalive"
 private const val isReadyEndpoint = "/isready"
@@ -25,7 +24,6 @@ private const val metricsEndpoint = "/metrics"
 internal fun setupKtorApplication(
     port: Int = 8080,
     metrics: List<MeterBinder>,
-    collectorRegistry: CollectorRegistry,
     customizeableModule: Application.() -> Unit,
     readerJob: () -> Unit,
     onStartup: ((Application) -> Unit)?,
@@ -42,7 +40,7 @@ internal fun setupKtorApplication(
     },
     module = {
         // Setup /isalive, /isready and /metrics
-        metaEndpoints(healthChecks, collectorRegistry, metrics)
+        metaEndpoints(healthChecks, metrics)
 
         // Setup MessageChannel
         install(MessageChannel) {
@@ -94,14 +92,15 @@ private fun <T> T.runHook(eventHook: String, block: (T) -> Unit) {
 
 private fun Application.metaEndpoints(
     healthChecks: List<HealthCheck>,
-    collectorRegistry: CollectorRegistry,
     metrics: List<MeterBinder>
 ) {
+
     install(MicrometerMetrics) {
-        registry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT, collectorRegistry, Clock.SYSTEM)
+        registry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT, PrometheusRegistry.defaultRegistry, Clock.SYSTEM)
         meterBinders = meterBinders + metrics
         addRegistry(registry)
     }
+
     routing {
         get(isAliveEndpoint) {
             val failingTests = healthChecks.filter { it.checkFunction() == AppHealth.Unhealthy }
@@ -119,10 +118,21 @@ private fun Application.metaEndpoints(
             call.respond(HttpStatusCode.OK)
         }
 
+        val writer = ExpositionFormats.init().openMetricsTextFormatWriter
+
         get(metricsEndpoint) {
-            val names = call.request.queryParameters.getAll("name[]")?.toSet() ?: emptySet()
-            call.respondTextWriter(ContentType.parse(TextFormat.CONTENT_TYPE_004)) {
-                TextFormat.write004(this, collectorRegistry.filteredMetricFamilySamples(names))
+            PrometheusRegistry.defaultRegistry.scrape()
+
+            val requestedNames = call.request.queryParameters.getAll("name[]")?.toSet() ?: emptySet()
+
+            val filter = if (requestedNames.isNotEmpty()) {
+                MetricNameFilter.builder().nameMustBeEqualTo(requestedNames).build()
+            } else {
+                null
+            }
+
+            call.respondOutputStream(ContentType.parse(writer.contentType)) {
+                writer.write(this, PrometheusRegistry.defaultRegistry.scrape(filter))
             }
         }
     }

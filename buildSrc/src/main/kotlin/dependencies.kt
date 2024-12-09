@@ -97,17 +97,18 @@ object Ktor {
 
 object Micrometer: DependencyGroup {
     override val groupId get() = "io.micrometer"
-    override val version get() = "1.12.5"
+    override val version get() = "1.14.1"
 
     val registryPrometheus get() = dependency("micrometer-registry-prometheus")
 }
 
 object Prometheus: DependencyGroup {
-    override val version get() = "0.16.0"
+    override val version get() = "1.3.4"
     override val groupId get() = "io.prometheus"
 
-    val common get() = dependency("simpleclient_common")
-    val simpleClient get() = dependency("simpleclient")
+    val metricsCore get() = dependency("prometheus-metrics-core")
+    val exporterCommon get() = dependency("prometheus-metrics-exporter-common")
+    val server get() = dependency("prometheus-metrics-exporter-httpserver")
 }
 
 object TmsKtorTokenSupport: DependencyGroup {
