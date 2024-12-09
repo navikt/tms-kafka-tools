@@ -108,7 +108,6 @@ object Prometheus: DependencyGroup {
 
     val metricsCore get() = dependency("prometheus-metrics-core")
     val exporterCommon get() = dependency("prometheus-metrics-exporter-common")
-    val server get() = dependency("prometheus-metrics-exporter-httpserver")
 }
 
 object TmsKtorTokenSupport: DependencyGroup {

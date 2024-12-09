@@ -2,7 +2,6 @@ package no.nav.tms.kafka.application
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
-import io.prometheus.metrics.exporter.httpserver.HTTPServer
 import java.net.InetAddress
 import java.util.*
 
