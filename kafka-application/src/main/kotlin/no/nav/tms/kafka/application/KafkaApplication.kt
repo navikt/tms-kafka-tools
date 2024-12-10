@@ -2,13 +2,11 @@ package no.nav.tms.kafka.application
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.prometheus.client.CollectorRegistry
 import java.net.InetAddress
 import java.util.*
 
 class KafkaApplication internal constructor(
-    private val ktor: ApplicationEngine,
+    private val ktor: KtorServer,
     private val reader: KafkaReader
 ) {
     init {
@@ -63,8 +61,6 @@ class KafkaApplicationBuilder internal constructor() {
     private val healthChecks: MutableList<HealthCheck> = mutableListOf()
 
     private val subscribers: MutableList<Subscriber> = mutableListOf()
-
-    private var collectorRegistry: CollectorRegistry = CollectorRegistry.defaultRegistry
 
     private var readerConfig: KafkaReaderConfig? = null
 
@@ -139,7 +135,6 @@ class KafkaApplicationBuilder internal constructor() {
             ktor = setupKtorApplication(
                 port = httpPort,
                 metrics = reader.getMetrics(),
-                collectorRegistry = collectorRegistry,
                 customizeableModule = customizableModule,
                 readerJob = { reader.start() },
                 onStartup = startupHook,
@@ -163,9 +158,6 @@ class KafkaReaderConfigBuilder internal constructor() {
         eventNameFields.addAll(fieldNames)
     }
 
-    @Deprecated("Use function eventNameFields()", replaceWith = ReplaceWith("this.eventNameFields()"))
-    var eventName: String? = null
-
     var groupId: String? = null
     var enableSSL: Boolean = true
     var environment: Map<String, String> = System.getenv()
@@ -179,8 +171,6 @@ class KafkaReaderConfigBuilder internal constructor() {
 
         val nameFields = if (eventNameFields.isNotEmpty()) {
             eventNameFields
-        } else if (eventName != null) {
-            listOf(eventName!!)
         } else {
             listOf(JsonMessage.DEFAULT_EVENT_NAME)
         }

@@ -7,10 +7,10 @@ import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.common.serialization.StringSerializer
-import org.testcontainers.containers.KafkaContainer
+import org.testcontainers.kafka.ConfluentKafkaContainer
 import java.util.*
 
-class KafkaTestFactory(kafkaContainer: KafkaContainer) {
+class KafkaTestFactory(kafkaContainer: ConfluentKafkaContainer) {
     private val stringSerializer = StringSerializer()
 
     private val connectionProperties = localProperties(kafkaContainer)
@@ -28,7 +28,7 @@ class KafkaTestFactory(kafkaContainer: KafkaContainer) {
 
     fun createAdminClient(): AdminClient = KafkaAdminClient.create(connectionProperties)
 
-    private fun localProperties(kafkaContainer: KafkaContainer) = Properties().apply {
+    private fun localProperties(kafkaContainer: ConfluentKafkaContainer) = Properties().apply {
         put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.bootstrapServers)
         put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "PLAINTEXT")
         put(SaslConfigs.SASL_MECHANISM, "PLAIN")
