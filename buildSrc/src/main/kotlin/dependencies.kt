@@ -18,18 +18,26 @@ object Awaitility: DependencyGroup {
 }
 
 object JacksonDatatype: DependencyGroup {
-    override val version get() = "2.18.1"
+    override val version get() = "2.18.2"
 
     val datatypeJsr310 get() = dependency("jackson-datatype-jsr310", groupId = "com.fasterxml.jackson.datatype")
     val moduleKotlin get() = dependency("jackson-module-kotlin", groupId = "com.fasterxml.jackson.module")
 }
 
-object Junit: DependencyGroup {
+object JunitJupiter: DependencyGroup {
     override val groupId get() = "org.junit.jupiter"
-    override val version get() = "5.11.3"
+    override val version get() = "5.11.4"
 
     val api get() = dependency("junit-jupiter-api")
     val engine get() = dependency("junit-jupiter-engine")
+    val params get() = dependency("junit-jupiter-params")
+}
+
+object JunitPlatform: DependencyGroup {
+    override val groupId get() = "org.junit.platform"
+    override val version get() = "1.11.4"
+
+    val launcher get() = dependency("junit-platform-launcher")
 }
 
 object KafkaTestContainers: DependencyGroup {
@@ -56,12 +64,12 @@ object Kotest: DependencyGroup {
 
 object Kotlin: DependencyGroup {
     override val groupId get() = "org.jetbrains.kotlin"
-    override val version get() = "2.0.21"
+    override val version get() = "2.1.0"
 }
 
 object KotlinLogging: DependencyGroup {
     override val groupId get() = "io.github.oshai"
-    override val version get() = "7.0.0"
+    override val version get() = "7.0.3"
 
     val logging get() = dependency("kotlin-logging")
 }
@@ -73,7 +81,7 @@ object Kotlinx: DependencyGroup {
 }
 
 object Ktor {
-    val version get() = "3.0.1"
+    val version get() = "3.0.3"
     val groupId get() = "io.ktor"
 
     object Server: DependencyGroup {
@@ -97,7 +105,7 @@ object Ktor {
 
 object Micrometer: DependencyGroup {
     override val groupId get() = "io.micrometer"
-    override val version get() = "1.14.1"
+    override val version get() = "1.14.2"
 
     val registryPrometheus get() = dependency("micrometer-registry-prometheus")
 }
@@ -112,7 +120,7 @@ object Prometheus: DependencyGroup {
 
 object TmsKtorTokenSupport: DependencyGroup {
     override val groupId get() = "no.nav.tms.token.support"
-    override val version get() = "5.0.0"
+    override val version get() = "5.0.1"
 
     val azureValidation get() = dependency("azure-validation")
     val azureValidationMock get() = dependency("azure-validation-mock")

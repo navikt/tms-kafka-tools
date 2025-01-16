@@ -16,7 +16,7 @@ repositories {
 
 kotlin {
     jvmToolchain {
-        languageVersion.set(JavaLanguageVersion.of(17))
+        languageVersion.set(JavaLanguageVersion.of(21))
     }
 }
 
@@ -33,8 +33,9 @@ dependencies {
     implementation(Ktor.Server.authJwt)
     implementation(TmsKtorTokenSupport.azureValidation)
     testImplementation(Awaitility.awaitility)
-    testImplementation(Junit.api)
-    testImplementation(Junit.engine)
+    testImplementation(JunitPlatform.launcher)
+    testImplementation(JunitJupiter.api)
+    testImplementation(JunitJupiter.engine)
     testImplementation(KafkaTestContainers.kafka)
     testImplementation(Kotest.assertionsCore)
     testImplementation(Ktor.Test.serverTestHost)
@@ -72,7 +73,7 @@ publishing {
             version = libraryVersion
             from(components["java"])
 
-            val sourcesJar by tasks.creating(Jar::class) {
+            val sourcesJar by tasks.registering(Jar::class) {
                 archiveClassifier.set("sources")
                 from(sourceSets.main.get().allSource)
             }
