@@ -82,7 +82,7 @@ class MessageBroadcaster(
     }
 }
 
-class MessageException(message: String): IllegalArgumentException(message)
+open class MessageException(message: String): IllegalArgumentException(message)
 
 private object Metrics {
     private val registry = PrometheusRegistry.defaultRegistry
