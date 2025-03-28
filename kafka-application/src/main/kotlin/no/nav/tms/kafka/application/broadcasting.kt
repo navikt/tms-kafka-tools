@@ -1,8 +1,6 @@
 package no.nav.tms.kafka.application
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import io.ktor.server.application.*
-import io.ktor.util.*
 import io.prometheus.metrics.core.metrics.Counter
 import io.prometheus.metrics.core.metrics.Histogram
 import io.prometheus.metrics.model.registry.PrometheusRegistry
@@ -10,6 +8,8 @@ import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import kotlin.time.DurationUnit
 import kotlin.time.measureTimedValue
+
+open class MessageException(message: String): IllegalArgumentException(message)
 
 class RecordBroadcaster internal constructor(
     private val subscribers: List<Subscriber>,
@@ -45,11 +45,11 @@ class RecordBroadcaster internal constructor(
         subscribers.forEach { subscriber ->
             measureTimedValue {
                 subscriber.onMessage(jsonMessage)
-            }.let { (result, duration) ->
-                Metrics.onMessageCounter.labelValues(subscriber.name(), jsonMessage.eventName, result.toString())
+            }.let { (outcome, duration) ->
+                Metrics.onMessageCounter.labelValues(subscriber.name(), jsonMessage.eventName, outcome.status.name)
                     .inc()
 
-                Metrics.onMessageHistorgram.labelValues(subscriber.name(), jsonMessage.eventName, result.toString())
+                Metrics.onMessageHistorgram.labelValues(subscriber.name(), jsonMessage.eventName, outcome.status.name)
                     .observe(duration.toDouble(DurationUnit.SECONDS))
             }
         }
@@ -59,9 +59,12 @@ class RecordBroadcaster internal constructor(
 // For use in tests in dependent projects
 class MessageBroadcaster(
     private val subscribers: List<Subscriber>,
-    eventNameFields: List<String> = listOf(JsonMessage.DEFAULT_EVENT_NAME)
+    eventNameFields: List<String> = listOf(JsonMessage.DEFAULT_EVENT_NAME),
+    enableTracking: Boolean = false
 ) {
-    constructor(vararg subscriber: Subscriber, eventNameFields: List<String> = listOf(JsonMessage.DEFAULT_EVENT_NAME)) : this(subscriber.toList(), eventNameFields)
+    constructor(vararg subscriber: Subscriber, eventNameFields: List<String> =
+        listOf(JsonMessage.DEFAULT_EVENT_NAME), enableTracking: Boolean = false) :
+        this(subscriber.toList(), eventNameFields, enableTracking)
 
     private val messageBuilder: JsonMessageBuilder = JsonMessageBuilder(eventNameFields)
 
@@ -76,13 +79,27 @@ class MessageBroadcaster(
     private fun broadcastMessage(jsonMessage: JsonMessage) {
         subscribers.forEach { subscriber ->
             runBlocking {
-                subscriber.onMessage(jsonMessage)
+                subscriber.onMessage(jsonMessage).let {
+                    tracker?.track(subscriber, jsonMessage, it)
+                }
             }
         }
     }
-}
 
-open class MessageException(message: String): IllegalArgumentException(message)
+    fun history(): MessageTracker {
+        return tracker ?: throw IllegalStateException("Must enable tracking to access message history")
+    }
+
+    fun clearHistory() {
+        tracker?.reset() ?: throw IllegalStateException("Must enable tracking to clear history")
+    }
+
+    private val tracker: MessageTracker? = if (enableTracking) {
+        MessageTracker()
+    } else {
+        null
+    }
+}
 
 private object Metrics {
     private val registry = PrometheusRegistry.defaultRegistry

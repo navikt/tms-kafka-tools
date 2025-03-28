@@ -4,6 +4,21 @@ import com.fasterxml.jackson.databind.JsonNode
 import io.github.oshai.kotlinlogging.KotlinLogging
 import no.nav.tms.kafka.application.MessageStatus.*
 
+
+abstract class MessageOutcome {
+    internal abstract val status: MessageStatus
+}
+
+object MessageAccepted: MessageOutcome() {
+    override val status: MessageStatus = Accepted
+}
+object MessageIgnored: MessageOutcome() {
+    override val status: MessageStatus = Ignored
+}
+class MessageFailed(val cause: MessageException): MessageOutcome() {
+    override val status: MessageStatus = Failed
+}
+
 abstract class Subscriber {
     internal fun name() = this::class.simpleName ?: "anonymous-subscriber"
 
@@ -15,41 +30,43 @@ abstract class Subscriber {
     abstract fun subscribe(): Subscription
     abstract suspend fun receive(jsonMessage: JsonMessage)
 
-    suspend fun onMessage(jsonMessage: JsonMessage): MessageStatus {
+    suspend fun onMessage(jsonMessage: JsonMessage): MessageOutcome {
         val message = jsonMessage.withFields(subscription.knownFields)
 
         val result = subscription.tryAccept(message, ::receive)
 
-        when (result.status) {
+        return when (result.status) {
             Failed -> {
                 log.warn { "Subscriber [${name()}] received failing message with name [${message.eventName}]." }
                 secureLog.warn { "Subscriber [${name()}] received failing message [${message.json}] due to [${result.reason}]." }
+                MessageFailed(result.cause!!)
             }
             Ignored -> {
                 log.debug { "Subscriber [${name()}] ignored message with name [${message.eventName}]." }
                 secureLog.debug { "Subscriber [${name()}] rejected message [${message.json}] due to [${result.reason}]." }
+                MessageIgnored
             }
             Accepted -> {
                 log.debug { "Subscriber [${name()}] accepted message with name [${message.eventName}]." }
+                MessageAccepted
             }
         }
-
-        return result.status
     }
 }
 
 internal data class SubscriberResult(
     val status: MessageStatus,
-    val reason: String?
+    val reason: String?,
+    val cause: MessageException?
 ) {
     companion object {
-        fun failed(e: MessageException) = SubscriberResult(Failed, e.message)
-        fun ignored(reason: IgnoreReason) = SubscriberResult(Ignored, reason.explainReason())
-        fun accepted() = SubscriberResult(Accepted, null)
+        fun failed(e: MessageException) = SubscriberResult(Failed, e.message, e)
+        fun ignored(reason: IgnoreReason) = SubscriberResult(Ignored, reason.explainReason(), null)
+        fun accepted() = SubscriberResult(Accepted, null, null)
     }
 }
 
-enum class MessageStatus {
+internal enum class MessageStatus {
     Accepted, Ignored, Failed;
 
     override fun toString() = name.lowercase()
