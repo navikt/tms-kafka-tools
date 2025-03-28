@@ -33,37 +33,37 @@ class MessageTracker internal constructor() {
             ?.let { it as MessageFailed }
     }
 
-    fun <T : Subscriber> findOutcomes(subscriber: KClass<T>): List<Pair<JsonMessage, MessageOutcome>> {
+    fun <T : Subscriber> allOutcomes(subscriber: KClass<T>): List<Pair<JsonMessage, MessageOutcome>> {
         return subscriberHistory[subscriber.simpleName]
             ?.map { it.message to it.outcome }
             ?: emptyList()
     }
 
-    fun <T : Subscriber> findFailedOutcomes(subscriber: KClass<T>): List<Pair<JsonMessage, MessageFailed>> {
+    fun <T : Subscriber> allFailedOutcomes(subscriber: KClass<T>): List<Pair<JsonMessage, MessageFailed>> {
         return subscriberHistory[subscriber.simpleName]
             ?.filter { it.outcome is MessageFailed }
             ?.map { it.message to it.outcome as MessageFailed }
             ?: emptyList()
     }
 
-    fun getStats(): List<TrackerStats> {
+    fun collectAggregates(): List<AggregateOutcomes> {
         return subscriberHistory.toList().map { (subscriber, history) ->
-            collectStats(subscriber, history)
+            collectAggregate(subscriber, history)
         }
     }
 
-    fun <T : Subscriber> getStats(subscriber: KClass<T>): TrackerStats? {
+    fun <T : Subscriber> collectAggregate(subscriber: KClass<T>): AggregateOutcomes? {
         return subscriberHistory[subscriber.simpleName]?.let { history ->
-            collectStats(subscriber.simpleName!!, history)
+            collectAggregate(subscriber.simpleName!!, history)
         }
     }
 
-    private fun collectStats(subscriber: String, history: List<TrackerEntry>): TrackerStats {
+    private fun collectAggregate(subscriber: String, history: List<TrackerEntry>): AggregateOutcomes {
         val count = history
             .groupBy { it.outcome.status }
             .mapValues { it.value.size }
 
-        return TrackerStats(
+        return AggregateOutcomes(
             subscriber = subscriber,
             accepted = count[MessageStatus.Accepted]?: 0,
             ignored = count[MessageStatus.Ignored]?: 0,
@@ -72,7 +72,7 @@ class MessageTracker internal constructor() {
     }
 }
 
-class TrackerStats(
+class AggregateOutcomes(
     val subscriber: String,
     val accepted: Int,
     val ignored: Int,

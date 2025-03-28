@@ -61,7 +61,7 @@ class MessageTrackerTest {
         """{ "@event_name": "delivery" }"""
             .let { broadcaster.broadcastJson(it) }
 
-        broadcaster.history().getStats(AppleCollector::class).let {
+        broadcaster.history().collectAggregate(AppleCollector::class).let {
             it.shouldNotBeNull()
             it.failed shouldBe 1
             it.ignored shouldBe 2
