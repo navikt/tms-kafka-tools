@@ -30,19 +30,18 @@ internal class KafkaReader(
     fun isRunning() = job.isActive
 
     fun start() {
-        log.info { "starting kafka reader" }
+        log.info { "Starting kafka reader" }
 
         job.start()
     }
 
     fun stop() = runBlocking {
-        log.info { "stopping kafka reader" }
+        log.info { "Stopping kafka reader" }
 
         job.cancelAndJoin()
     }
 
     private suspend fun consumeMessages() {
-        var lastException: Exception? = null
         try {
             consumer.subscribe(kafkaTopics, this)
             while (job.isActive) {
@@ -55,13 +54,15 @@ internal class KafkaReader(
                     }
                 }
             }
-        } catch (err: WakeupException) {
-            lastException = err
-        } catch (err: Exception) {
-            lastException = err
-            consumer.wakeup()
+
+            log.info { "Stopped consuming messages after polling" }
+        } catch (e: CancellationException) {
+            log.info { "Stopped consuming messages during polling" }
+        } catch (e: Exception) {
+            log.error { "Stopped consuming messages due to an error" }
+            secureLog.error(e) { "Stopped consuming messages due to an error" }
         } finally {
-            closeResources(lastException)
+            closeResources()
         }
     }
 
@@ -118,18 +119,12 @@ internal class KafkaReader(
         "kafka_record_offset" to "${record.offset()}"
     )
 
-    private fun closeResources(lastException: Exception?) {
-        if (lastException != null) {
-            log.warn{ "stopped consuming messages due to an error" }
-            secureLog.warn(lastException) { "stopped consuming messages due to an error" }
-        } else {
-            log.info { "stopped consuming messages after receiving stop signal" }
-        }
-        job.cancel()
+    private fun closeResources() {
         try {
             consumer.close()
-        } catch (err: Exception) {
-            log.error(err) { err.message }
+        } catch (e: Exception) {
+            log.error { "Error during graceful shutdown of kafka consumer" }
+            secureLog.error(e) { "Error during graceful shutdown of kafka consumer" }
         }
     }
 
