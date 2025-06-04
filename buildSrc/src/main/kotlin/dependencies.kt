@@ -80,7 +80,7 @@ object Kotlinx: DependencyGroup {
 }
 
 object Ktor {
-    val version get() = "3.0.3"
+    val version get() = "3.1.2"
     val groupId get() = "io.ktor"
 
     object Server: DependencyGroup {
@@ -119,7 +119,7 @@ object Prometheus: DependencyGroup {
 
 object TmsKtorTokenSupport: DependencyGroup {
     override val groupId get() = "no.nav.tms.token.support"
-    override val version get() = "5.0.1"
+    override val version get() = "5.0.2"
 
     val azureValidation get() = dependency("azure-validation")
     val azureValidationMock get() = dependency("azure-validation-mock")
