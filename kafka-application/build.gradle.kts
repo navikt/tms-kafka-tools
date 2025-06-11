@@ -33,6 +33,8 @@ dependencies {
     implementation(Ktor.Server.core)
     implementation(Ktor.Server.cio)
     implementation(Ktor.Server.metricsMicrometer)
+    implementation(Logback.classic)
+    implementation(Logstash.logbackEncoder)
     implementation(Prometheus.metricsCore)
     implementation(Prometheus.exporterCommon)
     testImplementation(Awaitility.awaitility)
