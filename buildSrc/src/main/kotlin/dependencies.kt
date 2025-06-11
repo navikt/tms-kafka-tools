@@ -130,7 +130,7 @@ object Prometheus: DependencyGroup {
 
 object TmsKtorTokenSupport: DependencyGroup {
     override val groupId get() = "no.nav.tms.token.support"
-    override val version get() = "5.0.3"
+    override val version get() = "5.0.4"
 
     val azureValidation get() = dependency("azure-validation")
     val azureValidationMock get() = dependency("azure-validation-mock")
