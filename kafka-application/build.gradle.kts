@@ -19,8 +19,8 @@ kotlin {
 
 dependencies {
     constraints {
-        implementation("org.apache.zookeeper:zookeeper:3.9.2") {
-            because("CWE-639: Authorization Bypass Through User-Controlled Key")
+        implementation("org.apache.zookeeper:zookeeper:3.9.3") {
+            because("CVE-2024-51504 : Authorization Bypass Through Spoofing")
         }
     }
 
