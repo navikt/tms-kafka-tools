@@ -160,7 +160,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
                 .let(SubscriberResult::ignored)
         }
 
-        val presentFields = jsonMessage.json.fields().asSequence().toList().map { it.key }.toSet()
+        val presentFields = jsonMessage.json.properties().map { it.key }.toSet()
 
         val missingFields = (requiredFields - presentFields).toList()
 
