@@ -41,9 +41,9 @@ object JunitPlatform: DependencyGroup {
 
 object Kafka: DependencyGroup {
     override val groupId get() = "org.apache.kafka"
-    override val version get() = "3.9.0"
+    override val version get() = "4.1.1"
 
-    val kafka_2_12 get() = dependency("kafka_2.12")
+    val clients get() = dependency("kafka-clients")
 }
 
 object KafkaTestContainers: DependencyGroup {

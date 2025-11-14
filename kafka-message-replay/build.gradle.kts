@@ -27,7 +27,7 @@ dependencies {
     implementation(JacksonDatatype.moduleKotlin)
     implementation(Kotlinx.coroutines)
     implementation(KotlinLogging.logging)
-    implementation(Kafka.kafka_2_12)
+    implementation(Kafka.clients)
     implementation(Ktor.Server.core)
     implementation(Ktor.Server.cio)
     implementation(Ktor.Server.authJwt)

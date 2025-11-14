@@ -18,18 +18,12 @@ kotlin {
 }
 
 dependencies {
-    constraints {
-        implementation("org.apache.zookeeper:zookeeper:3.9.3") {
-            because("CVE-2024-51504 : Authorization Bypass Through Spoofing")
-        }
-    }
-
     implementation(JacksonDatatype.datatypeJsr310)
     implementation(JacksonDatatype.moduleKotlin)
     implementation(Micrometer.registryPrometheus)
     implementation(Kotlinx.coroutines)
     implementation(KotlinLogging.logging)
-    implementation(Kafka.kafka_2_12)
+    implementation(Kafka.clients)
     implementation(Ktor.Server.core)
     implementation(Ktor.Server.cio)
     implementation(Ktor.Server.metricsMicrometer)
