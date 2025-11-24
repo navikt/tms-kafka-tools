@@ -8,6 +8,7 @@ import org.apache.kafka.clients.consumer.*
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.*
 import java.time.Duration
+import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.*
@@ -104,15 +105,12 @@ internal class KafkaReader(
     }
 
     private fun pollDiganostics(records: ConsumerRecords<String, String>) = mapOf(
-        "kafka_poll_id" to "${UUID.randomUUID()}",
         "kafka_poll_time" to "${nowAtUtc()}",
-        "kafka_poll_count" to "${records.count()}"
+        "kafka_poll_records_count" to "${records.count()}"
     )
 
     private fun recordDiganostics(record: ConsumerRecord<String, String>) = mapOf(
-        "kafka_record_id" to "${UUID.randomUUID()}",
-        "kafka_record_before_notify_time" to "${nowAtUtc()}",
-        "kafka_record_produced_time" to "${record.timestamp()}",
+        "kafka_record_produced_time" to "${Instant.ofEpochMilli(record.timestamp())}",
         "kafka_record_produced_time_type" to "${record.timestampType()}",
         "kafka_record_topic" to record.topic(),
         "kafka_record_partition" to "${record.partition()}",
