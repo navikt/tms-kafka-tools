@@ -6,12 +6,10 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.CoroutineStart.LAZY
 import org.apache.kafka.clients.consumer.*
 import org.apache.kafka.common.TopicPartition
-import org.apache.kafka.common.errors.*
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
-import java.util.*
 
 internal class KafkaReader(
     factory: ConsumerFactory,
