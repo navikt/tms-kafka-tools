@@ -8,6 +8,9 @@ plugins {
 
 repositories {
     mavenCentral()
+    maven {
+        url = uri("https://github-package-registry-mirror.gc.nav.no/cached/maven-release")
+    }
     mavenLocal()
 }
 
@@ -31,6 +34,7 @@ dependencies {
     implementation(Logstash.logbackEncoder)
     implementation(Prometheus.metricsCore)
     implementation(Prometheus.exporterCommon)
+    implementation(TmsCommonLib.teamLogger)
     testImplementation(Awaitility.awaitility)
     testImplementation(JunitPlatform.launcher)
     testImplementation(JunitJupiter.api)

@@ -16,6 +16,7 @@ import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import io.prometheus.metrics.expositionformats.ExpositionFormats
 import io.prometheus.metrics.model.registry.MetricNameFilter
 import io.prometheus.metrics.model.registry.PrometheusRegistry
+import no.nav.tms.common.logging.TeamLogs
 
 private const val isAliveEndpoint = "/isalive"
 private const val isReadyEndpoint = "/isready"
@@ -78,7 +79,7 @@ internal fun setupKtorApplication(
 internal typealias KtorServer = EmbeddedServer<out ApplicationEngine, out ApplicationEngine.Configuration>
 
 private val logger = KotlinLogging.logger {}
-private val secureLog = KotlinLogging.logger("secureLog")
+private val teamLog = TeamLogs.logger(failSilently = true) { }
 
 private fun <T> T.runHook(eventHook: String, block: (T) -> Unit) {
     logger.info { "Executing user-defined hook '$eventHook'" }
@@ -86,7 +87,7 @@ private fun <T> T.runHook(eventHook: String, block: (T) -> Unit) {
         block(this)
     } catch (e: Exception) {
         logger.error { "Encountered error while executing user-defined event hook '$eventHook'" }
-        secureLog.error(e) { "Encountered error while executing user-defined event hook '$eventHook'" }
+        teamLog.error(e) { "Encountered error while executing user-defined event hook '$eventHook'" }
     }
 }
 

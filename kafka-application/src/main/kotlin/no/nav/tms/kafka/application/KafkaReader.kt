@@ -4,6 +4,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.micrometer.core.instrument.binder.kafka.KafkaClientMetrics
 import kotlinx.coroutines.*
 import kotlinx.coroutines.CoroutineStart.LAZY
+import no.nav.tms.common.logging.TeamLogs
 import org.apache.kafka.clients.consumer.*
 import org.apache.kafka.common.TopicPartition
 import java.time.Duration
@@ -22,7 +23,7 @@ internal class KafkaReader(
     private val job = scope.launch(start = LAZY) { consumeMessages() }
 
     private val log = KotlinLogging.logger {}
-    private val secureLog = KotlinLogging.logger("secureLog")
+    private val teamLog = TeamLogs.logger(failSilently = true) { }
 
     private val consumer = factory.createConsumer(groupId)
 
@@ -59,7 +60,7 @@ internal class KafkaReader(
             log.info { "Stopped consuming messages during polling" }
         } catch (e: Exception) {
             log.error { "Stopped consuming messages due to an error" }
-            secureLog.error(e) { "Stopped consuming messages due to an error" }
+            teamLog.error(e) { "Stopped consuming messages due to an error" }
         } finally {
             closeResources()
         }
@@ -83,7 +84,7 @@ internal class KafkaReader(
         } catch (err: Exception) {
 
             log.info { "committing local offsets prematurely due to an error during processing" }
-            secureLog.info(err) {
+            teamLog.info(err) {
                 "committing local offsets prematurely due to an error during processing" +
                     currentPositions.map { "\tpartition=${it.key}, offset=${it.value}" }
                         .joinToString(separator = "\n", prefix = "\n", postfix = "\n")
@@ -120,7 +121,7 @@ internal class KafkaReader(
             consumer.close()
         } catch (e: Exception) {
             log.error { "Error during graceful shutdown of kafka consumer" }
-            secureLog.error(e) { "Error during graceful shutdown of kafka consumer" }
+            teamLog.error(e) { "Error during graceful shutdown of kafka consumer" }
         }
     }
 

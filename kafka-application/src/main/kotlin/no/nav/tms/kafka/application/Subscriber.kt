@@ -2,6 +2,7 @@ package no.nav.tms.kafka.application
 
 import com.fasterxml.jackson.databind.JsonNode
 import io.github.oshai.kotlinlogging.KotlinLogging
+import no.nav.tms.common.logging.TeamLogs
 import no.nav.tms.kafka.application.MessageStatus.*
 
 
@@ -23,7 +24,7 @@ abstract class Subscriber {
     internal fun name() = this::class.simpleName ?: "anonymous-subscriber"
 
     private val log = KotlinLogging.logger {}
-    private val secureLog = KotlinLogging.logger("secureLog")
+    private val teamLog = TeamLogs.logger(failSilently = true) { }
 
     private val subscription by lazy { subscribe() }
 
@@ -38,12 +39,12 @@ abstract class Subscriber {
         return when (result.status) {
             Failed -> {
                 log.warn { "Subscriber [${name()}] received failing message with name [${message.eventName}]." }
-                secureLog.warn { "Subscriber [${name()}] received failing message [${message.json}] due to [${result.reason}]." }
+                teamLog.warn { "Subscriber [${name()}] received failing message [${message.json}] due to [${result.reason}]." }
                 MessageFailed(result.cause!!)
             }
             Ignored -> {
                 log.debug { "Subscriber [${name()}] ignored message with name [${message.eventName}]." }
-                secureLog.debug { "Subscriber [${name()}] rejected message [${message.json}] due to [${result.reason}]." }
+                teamLog.debug { "Subscriber [${name()}] rejected message [${message.json}] due to [${result.reason}]." }
                 MessageIgnored
             }
             Accepted -> {

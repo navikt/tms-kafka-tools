@@ -5,6 +5,7 @@ import io.prometheus.metrics.core.metrics.Counter
 import io.prometheus.metrics.core.metrics.Histogram
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import kotlinx.coroutines.runBlocking
+import no.nav.tms.common.logging.TeamLogs
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import kotlin.time.DurationUnit
 import kotlin.time.measureTimedValue
@@ -16,7 +17,7 @@ class RecordBroadcaster internal constructor(
     eventNameFields: List<String>
 ) {
     private val log = KotlinLogging.logger {}
-    private val secureLog = KotlinLogging.logger("secureLog")
+    private val teamLog = TeamLogs.logger(failSilently = true) { }
 
     private val messageBuilder = JsonMessageBuilder(eventNameFields)
 
@@ -29,15 +30,15 @@ class RecordBroadcaster internal constructor(
         } catch (e: JsonException) {
             Metrics.onInvalidEventCounter.labelValues(record.topic(), "invalid_json").inc()
             log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because value is not valid json" }
-            secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because value is not valid json" }
+            teamLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because value is not valid json" }
         } catch (e: MessageFormatException) {
             Metrics.onInvalidEventCounter.labelValues(record.topic(), "missing_name").inc()
             log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name' or its alternative" }
-            secureLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name' or its alternative" }
+            teamLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name' or its alternative" }
         }  catch (nullpointer: NullPointerException){
             Metrics.onInvalidEventCounter.labelValues(record.topic(), "nullpointer").inc()
             log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null'" }
-            secureLog.warn(nullpointer) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null'" }
+            teamLog.warn(nullpointer) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null'" }
         }
     }
 

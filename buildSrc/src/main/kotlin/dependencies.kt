@@ -136,3 +136,10 @@ object TmsKtorTokenSupport: DependencyGroup {
     val azureValidationMock get() = dependency("azure-validation-mock")
 }
 
+object TmsCommonLib: DependencyGroup {
+    override val groupId get() = "no.nav.tms.common"
+    override val version get() = "5.1.2"
+
+    val teamLogger get() = dependency("team-logger")
+}
+
