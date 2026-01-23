@@ -26,7 +26,7 @@ object JacksonDatatype: DependencyGroup {
 
 object JunitJupiter: DependencyGroup {
     override val groupId get() = "org.junit.jupiter"
-    override val version get() = "6.0.1"
+    override val version get() = "6.0.2"
 
     val api get() = dependency("junit-jupiter-api")
     val engine get() = dependency("junit-jupiter-engine")
@@ -34,7 +34,7 @@ object JunitJupiter: DependencyGroup {
 
 object JunitPlatform: DependencyGroup {
     override val groupId get() = "org.junit.platform"
-    override val version get() = "6.0.1"
+    override val version get() = "6.0.2"
 
     val launcher get() = dependency("junit-platform-launcher")
 }
@@ -48,14 +48,14 @@ object Kafka: DependencyGroup {
 
 object KafkaTestContainers: DependencyGroup {
     override val groupId get() = "org.testcontainers"
-    override val version get() = "1.21.3"
+    override val version get() = "1.21.4"
 
     val kafka get() = dependency("kafka")
 }
 
 object Kotest: DependencyGroup {
     override val groupId get() = "io.kotest"
-    override val version get() = "6.0.4"
+    override val version get() = "6.0.7"
 
     val assertionsCore get() = dependency("kotest-assertions-core")
     val extensions get() = dependency("kotest-extensions")
@@ -63,12 +63,12 @@ object Kotest: DependencyGroup {
 
 object Kotlin: DependencyGroup {
     override val groupId get() = "org.jetbrains.kotlin"
-    override val version get() = "2.2.21"
+    override val version get() = "2.3.0"
 }
 
 object KotlinLogging: DependencyGroup {
     override val groupId get() = "io.github.oshai"
-    override val version get() = "7.0.13"
+    override val version get() = "7.0.14"
 
     val logging get() = dependency("kotlin-logging")
 }
@@ -80,7 +80,7 @@ object Kotlinx: DependencyGroup {
 }
 
 object Ktor {
-    val version get() = "3.3.2"
+    val version get() = "3.3.3"
     val groupId get() = "io.ktor"
 
     object Server: DependencyGroup {
@@ -102,7 +102,7 @@ object Ktor {
 }
 
 object Logback: DependencyGroup {
-    override val version = "1.5.21"
+    override val version = "1.5.24"
     val classic = "ch.qos.logback:logback-classic:$version"
 }
 
@@ -130,7 +130,7 @@ object Prometheus: DependencyGroup {
 
 object TmsKtorTokenSupport: DependencyGroup {
     override val groupId get() = "no.nav.tms.token.support"
-    override val version get() = "5.0.5"
+    override val version get() = "5.0.6"
 
     val azureValidation get() = dependency("azure-validation")
     val azureValidationMock get() = dependency("azure-validation-mock")
@@ -138,7 +138,7 @@ object TmsKtorTokenSupport: DependencyGroup {
 
 object TmsCommonLib: DependencyGroup {
     override val groupId get() = "no.nav.tms.common"
-    override val version get() = "5.1.2"
+    override val version get() = "5.2.0"
 
     val teamLogger get() = dependency("team-logger")
 }
