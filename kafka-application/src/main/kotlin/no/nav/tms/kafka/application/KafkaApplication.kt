@@ -7,7 +7,7 @@ import java.util.*
 
 class KafkaApplication internal constructor(
     private val ktor: KtorServer,
-    private val reader: KafkaReader
+    private val reader: KafkaReader,
 ) {
     init {
         Runtime.getRuntime().addShutdownHook(Thread(::shutdownHook))
@@ -78,6 +78,17 @@ class KafkaApplicationBuilder internal constructor() {
 
     fun onStartup(startupHook: (Application) -> Unit) {
         this.startupHook = startupHook
+    }
+
+    fun minSideMdc(config: MinSideMdcConfig.() -> Unit) {
+        val mdcConfig = MinSideMdcConfig().apply { config() }
+        if (!mdcConfig.disable) {
+            mdcConfig.validate()
+            subscribers.forEach { subscriber -> subscriber.minSideMdcConfig = mdcConfig }
+            log.info { "Setter opp MinSideMDC med fieldmappings ${mdcConfig.describe()}" }
+        } else {
+            log.warn { "Setter ikke opp MinSideMDC opp i applikasjonen, disabled er satt til true" }
+        }
     }
 
     fun onReady(readyHook: (ApplicationEnvironment) -> Unit) {

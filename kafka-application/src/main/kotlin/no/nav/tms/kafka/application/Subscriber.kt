@@ -10,13 +10,15 @@ abstract class MessageOutcome {
     internal abstract val status: MessageStatus
 }
 
-object MessageAccepted: MessageOutcome() {
+object MessageAccepted : MessageOutcome() {
     override val status: MessageStatus = Accepted
 }
-object MessageIgnored: MessageOutcome() {
+
+object MessageIgnored : MessageOutcome() {
     override val status: MessageStatus = Ignored
 }
-class MessageFailed(val cause: MessageException): MessageOutcome() {
+
+class MessageFailed(val cause: MessageException) : MessageOutcome() {
     override val status: MessageStatus = Failed
 }
 
@@ -25,7 +27,7 @@ abstract class Subscriber {
 
     private val log = KotlinLogging.logger {}
     private val teamLog = TeamLogs.logger(failSilently = true) { }
-
+    lateinit var minSideMdcConfig: MinSideMdcConfig
     private val subscription by lazy { subscribe() }
 
     abstract fun subscribe(): Subscription
@@ -34,7 +36,10 @@ abstract class Subscriber {
     suspend fun onMessage(jsonMessage: JsonMessage): MessageOutcome {
         val message = jsonMessage.withFields(subscription.knownFields)
 
-        val result = subscription.tryAccept(message, ::receive)
+
+        val result = withMinSideMdc(minSideMdcConfig.initMinSideContext(message)) {
+            subscription.tryAccept(message, ::receive)
+        }
 
         return when (result.status) {
             Failed -> {
@@ -42,11 +47,13 @@ abstract class Subscriber {
                 teamLog.warn { "Subscriber [${name()}] received failing message [${message.json}] due to [${result.reason}]." }
                 MessageFailed(result.cause!!)
             }
+
             Ignored -> {
                 log.debug { "Subscriber [${name()}] ignored message with name [${message.eventName}]." }
                 teamLog.debug { "Subscriber [${name()}] rejected message [${message.json}] due to [${result.reason}]." }
                 MessageIgnored
             }
+
             Accepted -> {
                 log.debug { "Subscriber [${name()}] accepted message with name [${message.eventName}]." }
                 MessageAccepted
@@ -84,7 +91,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
     private val valueFilters: MutableMap<String, (JsonNode) -> Boolean> = mutableMapOf()
 
     companion object {
-        fun forEvent(name: String)  = Subscription(listOf(name))
+        fun forEvent(name: String) = Subscription(listOf(name))
         fun forEvents(name: String, vararg names: String) = Subscription(listOf(name) + names.toList())
         fun forAllEvents() = Subscription(emptyList())
     }
@@ -188,7 +195,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
                 } else {
                     null
                 }
-            }catch (e: Exception) {
+            } catch (e: Exception) {
                 field to node
             }
         }
@@ -232,7 +239,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
     }
 }
 
-class SubscriptionException(message: String): IllegalArgumentException(message)
+class SubscriptionException(message: String) : IllegalArgumentException(message)
 
 internal data class IgnoreReason(
     val ignoredEvent: String?,

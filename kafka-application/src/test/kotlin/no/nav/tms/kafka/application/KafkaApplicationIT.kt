@@ -1,5 +1,6 @@
 package no.nav.tms.kafka.application
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.kotest.matchers.shouldBe
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -16,8 +17,11 @@ import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.assertDoesNotThrow
+import org.junit.jupiter.api.assertThrows
 import org.testcontainers.kafka.ConfluentKafkaContainer
 import org.testcontainers.utility.DockerImageName
 import java.net.ServerSocket
@@ -77,7 +81,7 @@ class KafkaApplicationIT {
         // Mock some init job (flyway migration etc..)
         val initializatinJob = MockInitialization()
 
-        val application = setupApplication(stateHolder, greenBeadCounter, ktorApi, initializatinJob)
+        val application = setupApplication(stateHolder, greenBeadCounter, ktorApi, initializatinJob, { disable = true })
 
         // Start application and verify startup hook
 
@@ -128,7 +132,7 @@ class KafkaApplicationIT {
 
         await("wait for green beads to be counted")
             .atMost(10, TimeUnit.SECONDS)
-            .until{ stateHolder.greenBeads == 20 }
+            .until { stateHolder.greenBeads == 20 }
 
         stateHolder.greenBeads shouldBe 20
 
@@ -155,12 +159,124 @@ class KafkaApplicationIT {
         stateHolder.state shouldBe TestState.Stopped
     }
 
+    @Nested
+    inner class MdcTests {
+        @Test
+        fun `Setter opp minSideMdcContext`() {
+            assertDoesNotThrow {
+                runMdcTestApplication({
+                    disable = true
+                })
+            }
+            assertDoesNotThrow {
+                runMdcTestApplication({
+                    idFieldName = "fieldname"
+                    producedByFieldName = "producer"
+                    domain = Domain.utkast
+                }, sendMessages = true)
+            }
+        }
+
+        @Test
+        fun `kaster feilmelding hvis MDC-konfigurasjon ikke har brukt riktige feltnavn`() = runBlocking<Unit> {
+            assertThrows<IllegalArgumentException> {
+                runMdcTestApplication({})
+            }
+            assertThrows<IllegalArgumentException> {
+                runMdcTestApplication(
+                    config = {
+                        idFieldName = "idfelt"
+                        producedByFieldName = "produsent"
+                        domain = Domain.utkast
+                    },
+                    sendMessages = true,
+                    messageBlock = {
+                        val message1 =
+                            """{ "@event_name": "somethingHappened", "idField": "123", "produsent": "test"}"""
+                        listOf(message1)
+                            .forEach(::sendMessage)
+                    }
+
+
+                )
+            }
+        }
+
+        @Test
+        fun `tillater annet navn for event felt`() {
+
+        }
+
+        @Test
+        fun `Kaster feilmelding hvis felter ikke finnes`() {
+            assertThrows<IllegalStateException> {
+                runMdcTestApplication({
+                    idFieldName = "fieldname"
+                    producedByFieldName = "producer"
+                    domain = Domain.utkast
+                }
+                )
+            }
+        }
+
+        private fun runMdcTestApplication(
+            config: MinSideMdcConfig.() -> Unit,
+            sendMessages: Boolean = false,
+            messageBlock: () -> Unit? = {}
+
+        ) {
+            runBlocking {
+                val logger = KotlinLogging.logger {}
+                val stateHolder = TestStateHolder()
+                val mdcTestSubscriber = object : Subscriber() {
+                    override fun subscribe() = Subscription.forEvent("beads_counted")
+                        .withFields("idField", "producedByField", "domainField")
+                        .withValue("eventNameField", "somethingHappened")
+
+                    override suspend fun receive(jsonMessage: JsonMessage) {
+                        stateHolder.greenBeads += 1
+                        logger.info { "Counting: ${stateHolder.greenBeads}" }
+                    }
+                }
+                val initializatinJob = MockInitialization()
+                val application = setupApplication(stateHolder, mdcTestSubscriber, {}, initializatinJob, config)
+
+                if (sendMessages) {
+
+                    launch(Dispatchers.IO) {
+                        application.start()
+                    }
+                    await("Wait for init job to start")
+                        .atMost(5, TimeUnit.SECONDS)
+                        .until(initializatinJob::started)
+                    initializatinJob.complete()
+
+                    await("Wait for app to start")
+                        .atMost(5, TimeUnit.SECONDS)
+                        .until(application::isRunning)
+
+                    //make the application do stuff
+                    messageBlock()
+                    await("wait for green beads to be counted")
+                        .atMost(3, TimeUnit.SECONDS)
+                        .until { stateHolder.greenBeads == 1 }
+
+                    application.stop()
+                    await("Wait for app to stop")
+                        .atMost(5, TimeUnit.SECONDS)
+                        .until { !application.isRunning() }
+                }
+            }
+        }
+    }
+
 
     private fun setupApplication(
         stateHolder: TestStateHolder,
         subscriber: Subscriber,
         ktorModule: Application.() -> Unit,
-        initializatinJob: MockInitialization
+        initializatinJob: MockInitialization,
+        minSideMdcConfig: MinSideMdcConfig.() -> Unit
     ) = KafkaApplication.build {
 
         kafkaConfig {
@@ -183,6 +299,9 @@ class KafkaApplicationIT {
 
         onShutdown {
             stateHolder.state = TestState.Stopped
+        }
+        minSideMdc {
+            minSideMdcConfig()
         }
 
         subscriber {
