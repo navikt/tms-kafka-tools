@@ -1,12 +1,10 @@
 package no.nav.tms.kafka.application
 
 import io.kotest.matchers.shouldBe
-import io.ktor.server.routing.*
 import kotlinx.coroutines.*
 import no.nav.tms.kafka.application.KafkaTestContainer.TEST_TOPIC
 import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.assertThrows
@@ -28,7 +26,6 @@ class MinSideMDCTest {
     fun `Disabler min side MDC og legger til default felt event`() = minSideMdcTest {
         subscribeToEvent = "test_event"
         messageContent = emptyMap()
-        message = buildMessage()
         testConfig = {
             disable = true
         }
@@ -108,7 +105,6 @@ class MinSideMDCTest {
                 "producer" to "test-producer",
                 "id" to "test-id"
             )
-            message = buildMessage()
             subscribeTofields = listOf("producer", "id", "@event_name")
             testConfig = {
                 domain = Domain.microfrontend
@@ -154,13 +150,17 @@ class MinSideMDCTest {
     private class MinSideMdcTestBuilder() {
         var subscribeToEvent: String = "test_event"
         var messageContent: Map<String, Any?> = emptyMap()
+            set(value) {
+                field = value
+                message = buildMessage()
+            }
         var message: String = buildMessage()
         var groupId: String = UUID.randomUUID().toString()
         var testConfig: MinSideMdcConfig.() -> Unit = {}
         var mdcAssertions: (MdcSubscriber.() -> Unit)? = null
         var subscribeTofields: List<String> = emptyList()
 
-        fun buildMessage(): String {
+        private fun buildMessage(): String {
             val mapWithEvent = messageContent.toMutableMap().apply { put("@event_name", subscribeToEvent) }
             return mapWithEvent.entries.joinToString(prefix = "{", postfix = "}") { (k, v) ->
                 val value = when (v) {
@@ -184,9 +184,8 @@ class MinSideMDCTest {
             val application = setupApplication(
                 testStateHolder,
                 subscriber = mdcSubscriber,
-                ktorModule = { routing { get("dummy") { } } },
                 minSideMdcConfig = builder.testConfig,
-                initializatinJob = initJob,
+                initJob = initJob,
                 builder = builder
             )
             val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
@@ -202,11 +201,11 @@ class MinSideMDCTest {
                 await("Wait for app to start")
                     .atMost(10, TimeUnit.SECONDS)
                     .until(application::isRunning)
+
                 KafkaTestContainer.sendMessage(builder.message)
                 await("wait for messages to be processed")
-                    .atMost(10, TimeUnit.SECONDS)
+                    .atMost(3, TimeUnit.SECONDS)
                     .until { mdcSubscriber.messages.get() > 0 }
-
                 builder.mdcAssertions!!.invoke(mdcSubscriber)
             } finally {
                 application.stop()
@@ -221,9 +220,8 @@ class MinSideMDCTest {
     private fun setupApplication(
         stateHolder: TestStateHolder,
         subscriber: Subscriber,
-        ktorModule: io.ktor.server.application.Application.() -> Unit,
         minSideMdcConfig: MinSideMdcConfig.() -> Unit = { disable = true },
-        initializatinJob: MockInitialization,
+        initJob: MockInitialization,
         builder: MinSideMdcTestBuilder
     ) = KafkaApplication.build {
         kafkaConfig {
@@ -235,7 +233,7 @@ class MinSideMDCTest {
         httpPort = 0 // Use random port or configure as needed
         onStartup {
             stateHolder.state = TestState.Starting
-            initializatinJob.start()
+            initJob.start()
         }
         onReady {
             stateHolder.state = TestState.Running
@@ -252,35 +250,5 @@ class MinSideMDCTest {
         healthCheck {
             if (stateHolder.healthy) AppHealth.Healthy else AppHealth.Unhealthy
         }
-        ktorModule(ktorModule)
-    }
-
-    private class MockInitialization {
-        var started = false
-        private var isDone = false
-        private val failAfter = java.time.Duration.ofSeconds(5)
-        fun start() = runBlocking {
-            started = true
-            val start = java.time.Instant.now()
-            while (!isDone) {
-                if (java.time.Instant.now() > start + failAfter) {
-                    throw java.util.concurrent.TimeoutException("Failed to complete within $failAfter seconds.")
-                }
-                delay(50)
-            }
-        }
-
-        fun complete() {
-            isDone = true
-        }
-    }
-
-    private data class TestStateHolder(
-        var healthy: Boolean = true,
-        var state: TestState = TestState.Waiting,
-    )
-
-    private enum class TestState {
-        Waiting, Starting, Running, Stopped
     }
 }

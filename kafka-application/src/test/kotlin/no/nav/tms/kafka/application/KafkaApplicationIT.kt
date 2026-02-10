@@ -16,7 +16,6 @@ import no.nav.tms.kafka.application.KafkaTestContainer.sendMessage
 import no.nav.tms.kafka.application.KafkaTestContainer.sendMessageWithoutKey
 import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import java.net.ServerSocket
@@ -43,7 +42,7 @@ class KafkaApplicationIT {
 
         // Setup application with desired configuration
 
-        val stateHolder = TestStateHolder()
+        val stateHolder = GreenBeadsTestStateHolder()
 
         val greenBeadCounter = object : Subscriber() {
             override fun subscribe() = Subscription.forEvent("beads_counted")
@@ -146,7 +145,7 @@ class KafkaApplicationIT {
 
 
     private fun setupApplication(
-        stateHolder: TestStateHolder,
+        stateHolder: GreenBeadsTestStateHolder,
         subscriber: Subscriber,
         ktorModule: Application.() -> Unit,
         minSideMdcConfig: MinSideMdcConfig.() -> Unit = {
@@ -196,28 +195,6 @@ class KafkaApplicationIT {
     }
 }
 
-private class MockInitialization {
-    var started = false
-    private var isDone = false
-
-    private val failAfter = Duration.ofSeconds(5)
-
-    fun start() = runBlocking {
-        started = true
-        val start = Instant.now()
-        while (!isDone) {
-            if (Instant.now() > start + failAfter) {
-                throw TimeoutException("Failed to complete within $failAfter seconds.")
-            }
-            delay(50)
-        }
-    }
-
-    fun complete() {
-        isDone = true
-    }
-}
-
 private class TestClient {
 
     val port = ServerSocket(0).use { it.localPort }
@@ -228,12 +205,6 @@ private class TestClient {
     suspend fun get(path: String) = httpClient.get("$url$path")
 }
 
-private data class TestStateHolder(
-    var healthy: Boolean = true,
-    var state: TestState = TestState.Waiting,
+private class GreenBeadsTestStateHolder : TestStateHolder() {
     var greenBeads: Int = 0
-)
-
-private enum class TestState {
-    Waiting, Starting, Running, Stopped
 }

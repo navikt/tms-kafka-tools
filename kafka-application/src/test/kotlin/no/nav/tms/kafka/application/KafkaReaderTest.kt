@@ -25,9 +25,6 @@ class KafkaReaderTest {
     private val groupId = "test-app"
 
     private lateinit var consumerFactory: ConsumerFactory
-
-    private val kafkaContainer = KafkaTestContainer.instance
-
     private lateinit var producer: KafkaProducer<String, String>
     private lateinit var adminClient: AdminClient
 
@@ -40,12 +37,11 @@ class KafkaReaderTest {
         consumerFactory = ConsumerFactory.init(
             clientId = "test-app",
             enableSsl = false,
-            env = mapOf("KAFKA_BROKERS" to kafkaContainer.bootstrapServers)
+            env = KafkaTestContainer.applicationKafkaEnv
         )
 
-        val testFactory = KafkaTestFactory(kafkaContainer)
-        producer = testFactory.createProducer()
-        adminClient = testFactory.createAdminClient()
+        producer = KafkaTestContainer.createProducer()
+        adminClient = KafkaTestContainer.createAdminClient()
     }
 
     @AfterAll

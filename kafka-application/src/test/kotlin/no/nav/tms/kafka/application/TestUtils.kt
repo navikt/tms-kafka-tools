@@ -1,5 +1,7 @@
 package no.nav.tms.kafka.application
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.CommonClientConfigs
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.admin.KafkaAdminClient
@@ -11,17 +13,33 @@ import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.common.serialization.StringSerializer
 import org.testcontainers.kafka.ConfluentKafkaContainer
 import org.testcontainers.utility.DockerImageName
+import java.time.Duration
+import java.time.Instant
 import java.util.Properties
 import java.util.UUID
+import java.util.concurrent.TimeoutException
 
 object KafkaTestContainer {
-    val instance: ConfluentKafkaContainer = ConfluentKafkaContainer(
+    const val TEST_TOPIC = "test-topic"
+    private val instance: ConfluentKafkaContainer = ConfluentKafkaContainer(
         DockerImageName.parse("confluentinc/cp-kafka:7.8.0")
     ).apply { start() }
 
-    const val TEST_TOPIC = "test-topic"
-    val factory = KafkaTestFactory(instance)
-    private val testProducer = factory.createProducer()
+    private val stringSerializer = StringSerializer()
+    private val connectionProperties = Properties().apply {
+        put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, instance.bootstrapServers)
+        put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "PLAINTEXT")
+        put(SaslConfigs.SASL_MECHANISM, "PLAIN")
+    }
+
+    private val producerProperties = connectionProperties.apply {
+        put(ProducerConfig.ACKS_CONFIG, "all")
+        put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "1")
+        put(ProducerConfig.LINGER_MS_CONFIG, "0")
+        put(ProducerConfig.RETRIES_CONFIG, "0")
+    }
+
+    private val testProducer = createProducer()
     val applicationKafkaEnv = mapOf("KAFKA_BROKERS" to instance.bootstrapServers)
 
     init {
@@ -68,31 +86,40 @@ object KafkaTestContainer {
             admin.close()
         }
     }
-}
-
-class KafkaTestFactory(kafkaContainer: ConfluentKafkaContainer) {
-    private val stringSerializer = StringSerializer()
-
-    private val connectionProperties = localProperties(kafkaContainer)
-
-    private val producerProperties = copy(connectionProperties).apply {
-        put(ProducerConfig.ACKS_CONFIG, "all")
-        put(ProducerConfig.MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, "1")
-        put(ProducerConfig.LINGER_MS_CONFIG, "0")
-        put(ProducerConfig.RETRIES_CONFIG, "0")
-    }
 
     fun createProducer(): KafkaProducer<String, String> {
         return KafkaProducer(producerProperties, stringSerializer, stringSerializer)
     }
+    fun createAdminClient(): AdminClient  = KafkaAdminClient.create(connectionProperties)
+}
 
-    fun createAdminClient(): AdminClient = KafkaAdminClient.create(connectionProperties)
+open class TestStateHolder(
+    var healthy: Boolean = true,
+    var state: TestState = TestState.Waiting,
+)
 
-    private fun localProperties(kafkaContainer: ConfluentKafkaContainer) = Properties().apply {
-        put(CommonClientConfigs.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.bootstrapServers)
-        put(CommonClientConfigs.SECURITY_PROTOCOL_CONFIG, "PLAINTEXT")
-        put(SaslConfigs.SASL_MECHANISM, "PLAIN")
+enum class TestState {
+    Waiting, Starting, Running, Stopped
+}
+
+class MockInitialization {
+    var started = false
+    private var isDone = false
+
+    private val failAfter = Duration.ofSeconds(5)
+
+    fun start() = runBlocking {
+        started = true
+        val start = Instant.now()
+        while (!isDone) {
+            if (Instant.now() > start + failAfter) {
+                throw TimeoutException("Failed to complete within $failAfter seconds.")
+            }
+            delay(50)
+        }
     }
 
-    private fun copy(properties: Properties) = Properties().apply { putAll(properties) }
+    fun complete() {
+        isDone = true
+    }
 }
