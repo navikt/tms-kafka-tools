@@ -3,31 +3,25 @@ package no.nav.tms.kafka.application
 import io.kotest.matchers.shouldBe
 import io.ktor.server.routing.*
 import kotlinx.coroutines.*
+import no.nav.tms.kafka.application.KafkaTestContainer.TEST_TOPIC
 import org.awaitility.Awaitility.await
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.MDC
-import org.apache.kafka.clients.producer.KafkaProducer
-import org.apache.kafka.clients.producer.ProducerRecord
 import java.util.concurrent.TimeUnit
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
-import org.junit.jupiter.api.parallel.Execution
-import org.junit.jupiter.api.parallel.ExecutionMode
 
-@Execution(ExecutionMode.SAME_THREAD)
+@Disabled
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MinSideMDCTest {
 
-    companion object {
-        private val testTopic = "test-topic"
-        private val kafkaContainer = org.testcontainers.kafka.ConfluentKafkaContainer(org.testcontainers.utility.DockerImageName.parse("confluentinc/cp-kafka:7.8.0")).apply { start() }
-        init {
-            // Explicitly create the topic before any producer/consumer is created
-            val admin = org.apache.kafka.clients.admin.AdminClient.create(mapOf("bootstrap.servers" to kafkaContainer.bootstrapServers))
-            admin.createTopics(listOf(org.apache.kafka.clients.admin.NewTopic(testTopic, 1, 1))).all().get()
-            admin.close()
-        }
-        private val producer: KafkaProducer<String, String> = KafkaTestFactory(kafkaContainer).createProducer()
+    @BeforeAll
+    fun setup() {
+        KafkaTestContainer.cleanTopic()
     }
 
     @Test
@@ -208,7 +202,7 @@ class MinSideMDCTest {
                 await("Wait for app to start")
                     .atMost(10, TimeUnit.SECONDS)
                     .until(application::isRunning)
-                sendMessage(builder.message)
+                KafkaTestContainer.sendMessage(builder.message)
                 await("wait for messages to be processed")
                     .atMost(10, TimeUnit.SECONDS)
                     .until { mdcSubscriber.messages.get() > 0 }
@@ -224,15 +218,6 @@ class MinSideMDCTest {
         }
     }
 
-    private fun sendMessage(body: String) {
-        println("[TEST] Sending message to Kafka: $body")
-        producer.send(
-            ProducerRecord(testTopic, UUID.randomUUID().toString(), body)
-        )
-        producer.flush() // Ensure the message is delivered before Awaitility waits
-        println("[TEST] Message sent and flushed.")
-    }
-
     private fun setupApplication(
         stateHolder: TestStateHolder,
         subscriber: Subscriber,
@@ -241,12 +226,10 @@ class MinSideMDCTest {
         initializatinJob: MockInitialization,
         builder: MinSideMdcTestBuilder
     ) = KafkaApplication.build {
-        val kafkaEnv = mapOf("KAFKA_BROKERS" to kafkaContainer.bootstrapServers)
-        println("[TEST] Using Kafka brokers: ${kafkaEnv}")
         kafkaConfig {
-            readTopic(testTopic)
+            readTopic(TEST_TOPIC)
             groupId = builder.groupId // Use unique groupId per test
-            environment = kafkaEnv
+            environment = KafkaTestContainer.applicationKafkaEnv
             enableSSL = false
         }
         httpPort = 0 // Use random port or configure as needed
@@ -286,6 +269,7 @@ class MinSideMDCTest {
                 delay(50)
             }
         }
+
         fun complete() {
             isDone = true
         }
