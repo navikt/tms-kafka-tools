@@ -52,7 +52,6 @@ class KafkaReaderTest {
     fun teardown() {
         adminClient.close()
         producer.close()
-        kafkaContainer.stop()
     }
 
     @AfterEach

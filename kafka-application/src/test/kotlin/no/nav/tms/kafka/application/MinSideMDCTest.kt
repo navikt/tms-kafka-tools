@@ -15,7 +15,7 @@ import java.util.concurrent.TimeUnit
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
-@Disabled
+
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class MinSideMDCTest {
 

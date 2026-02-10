@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 
 
-@Disabled
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class KafkaApplicationIT {
 
