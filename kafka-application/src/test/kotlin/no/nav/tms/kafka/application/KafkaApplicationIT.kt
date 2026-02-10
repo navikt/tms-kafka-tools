@@ -1,6 +1,6 @@
 package no.nav.tms.kafka.application
 
-import io.github.oshai.kotlinlogging.KotlinLogging
+import io.kotest.matchers.maps.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -9,7 +9,12 @@ import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.coroutines.CoroutineExceptionHandler
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -20,8 +25,8 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
+import org.slf4j.MDC
 import org.testcontainers.kafka.ConfluentKafkaContainer
 import org.testcontainers.utility.DockerImageName
 import java.net.ServerSocket
@@ -81,7 +86,7 @@ class KafkaApplicationIT {
         // Mock some init job (flyway migration etc..)
         val initializatinJob = MockInitialization()
 
-        val application = setupApplication(stateHolder, greenBeadCounter, ktorApi, initializatinJob, { disable = true })
+        val application = setupApplication(stateHolder, greenBeadCounter, ktorApi, { disable = true }, initializatinJob)
 
         // Start application and verify startup hook
 
@@ -159,124 +164,15 @@ class KafkaApplicationIT {
         stateHolder.state shouldBe TestState.Stopped
     }
 
-    @Nested
-    inner class MdcTests {
-        @Test
-        fun `Setter opp minSideMdcContext`() {
-            assertDoesNotThrow {
-                runMdcTestApplication({
-                    disable = true
-                })
-            }
-            assertDoesNotThrow {
-                runMdcTestApplication({
-                    idFieldName = "fieldname"
-                    producedByFieldName = "producer"
-                    domain = Domain.utkast
-                }, sendMessages = true)
-            }
-        }
-
-        @Test
-        fun `kaster feilmelding hvis MDC-konfigurasjon ikke har brukt riktige feltnavn`() = runBlocking<Unit> {
-            assertThrows<IllegalArgumentException> {
-                runMdcTestApplication({})
-            }
-            assertThrows<IllegalArgumentException> {
-                runMdcTestApplication(
-                    config = {
-                        idFieldName = "idfelt"
-                        producedByFieldName = "produsent"
-                        domain = Domain.utkast
-                    },
-                    sendMessages = true,
-                    messageBlock = {
-                        val message1 =
-                            """{ "@event_name": "somethingHappened", "idField": "123", "produsent": "test"}"""
-                        listOf(message1)
-                            .forEach(::sendMessage)
-                    }
-
-
-                )
-            }
-        }
-
-        @Test
-        fun `tillater annet navn for event felt`() {
-
-        }
-
-        @Test
-        fun `Kaster feilmelding hvis felter ikke finnes`() {
-            assertThrows<IllegalStateException> {
-                runMdcTestApplication({
-                    idFieldName = "fieldname"
-                    producedByFieldName = "producer"
-                    domain = Domain.utkast
-                }
-                )
-            }
-        }
-
-        private fun runMdcTestApplication(
-            config: MinSideMdcConfig.() -> Unit,
-            sendMessages: Boolean = false,
-            messageBlock: () -> Unit? = {}
-
-        ) {
-            runBlocking {
-                val logger = KotlinLogging.logger {}
-                val stateHolder = TestStateHolder()
-                val mdcTestSubscriber = object : Subscriber() {
-                    override fun subscribe() = Subscription.forEvent("beads_counted")
-                        .withFields("idField", "producedByField", "domainField")
-                        .withValue("eventNameField", "somethingHappened")
-
-                    override suspend fun receive(jsonMessage: JsonMessage) {
-                        stateHolder.greenBeads += 1
-                        logger.info { "Counting: ${stateHolder.greenBeads}" }
-                    }
-                }
-                val initializatinJob = MockInitialization()
-                val application = setupApplication(stateHolder, mdcTestSubscriber, {}, initializatinJob, config)
-
-                if (sendMessages) {
-
-                    launch(Dispatchers.IO) {
-                        application.start()
-                    }
-                    await("Wait for init job to start")
-                        .atMost(5, TimeUnit.SECONDS)
-                        .until(initializatinJob::started)
-                    initializatinJob.complete()
-
-                    await("Wait for app to start")
-                        .atMost(5, TimeUnit.SECONDS)
-                        .until(application::isRunning)
-
-                    //make the application do stuff
-                    messageBlock()
-                    await("wait for green beads to be counted")
-                        .atMost(3, TimeUnit.SECONDS)
-                        .until { stateHolder.greenBeads == 1 }
-
-                    application.stop()
-                    await("Wait for app to stop")
-                        .atMost(5, TimeUnit.SECONDS)
-                        .until { !application.isRunning() }
-                }
-            }
-        }
-    }
-
 
     private fun setupApplication(
         stateHolder: TestStateHolder,
         subscriber: Subscriber,
         ktorModule: Application.() -> Unit,
-        initializatinJob: MockInitialization,
-        minSideMdcConfig: MinSideMdcConfig.() -> Unit
+        minSideMdcConfig: MinSideMdcConfig.() -> Unit = {
+            disable = true
+        },
+        initializatinJob: MockInitialization
     ) = KafkaApplication.build {
 
         kafkaConfig {
@@ -300,12 +196,12 @@ class KafkaApplicationIT {
         onShutdown {
             stateHolder.state = TestState.Stopped
         }
-        minSideMdc {
-            minSideMdcConfig()
-        }
 
         subscriber {
             subscriber
+        }
+        minSideMdc {
+            minSideMdcConfig()
         }
 
         healthCheck {
@@ -329,6 +225,194 @@ class KafkaApplicationIT {
         producer.send(
             ProducerRecord(testTopic, null, body)
         )
+    }
+
+    @Nested
+    inner class MinSideMDCTest {
+
+        @Test
+        fun `Disabler min side MDC og legger til default felt event`() = minSideMdcTest {
+            testConfig = {
+                disable = true
+            }
+            mdcAssertions = {
+                kafkaValues().size shouldBe 7
+                nonKafkaValues()["event"] shouldBe "test_event"
+            }
+        }
+
+        @Test
+        fun `kaster exception hvis required field mangler`() {
+            assertThrows<IllegalArgumentException> {
+                minSideMdcTest {
+                    testConfig = {
+                        producedByFieldName = "producer"
+                        idFieldName = "id"
+                    }
+                }
+            }
+            assertThrows<IllegalArgumentException> {
+                minSideMdcTest {
+                    testConfig = {
+                        idFieldName = "id"
+                        domain = Domain.microfrontend
+                    }
+                }
+            }
+
+            assertThrows<IllegalArgumentException> {
+                minSideMdcTest {
+                    testConfig = {
+                        domain = Domain.microfrontend
+                        producedByFieldName = "producer"
+                    }
+                }
+            }
+        }
+
+        @Test
+        fun `kaster excpetion hvis required fields ikke er en del av en Subscribers subscription`() {
+            assertThrows<IllegalArgumentException> {
+                minSideMdcTest {
+                    subscribeTofields = listOf("producer", "id")
+                    testConfig = {
+                        domain = Domain.microfrontend
+                        producedByFieldName = "produced_by"
+                        idFieldName = "id"
+                    }
+                }
+            }
+
+            assertThrows<IllegalArgumentException> {
+                minSideMdcTest {
+                    subscribeTofields = listOf("producer", "@event_name")
+                    testConfig = {
+                        domain = Domain.microfrontend
+                        producedByFieldName = "producer"
+                        idFieldName = ""
+                    }
+                }
+            }
+
+            assertThrows<IllegalArgumentException> {
+                minSideMdcTest {
+                    subscribeTofields = listOf("id", "@event_name")
+                    testConfig = {
+                        domain = Domain.microfrontend
+                        producedByFieldName = "producer"
+                        idFieldName = "id"
+                    }
+                }
+            }
+        }
+
+        @Test
+        fun `Legger til mdc felter`() {
+            minSideMdcTest {
+                message = """{ "@event_name": "test_event", "producer": "test-producer", "id": "test-id" }"""
+                subscribeTofields = listOf("producer", "id", "@event_name")
+                testConfig = {
+                    domain = Domain.microfrontend
+                    producedByFieldName = "producer"
+                    idFieldName = "id"
+                }
+                mdcAssertions = {
+                    kafkaValues().size shouldBe 7
+                    val minSideValues = kafkaValues()
+                    minSideValues["domain"] shouldBe "microfrontend"
+                    minSideValues["produced_by"] shouldBe "test-producer"
+                    minSideValues["minside_id"] shouldBe "test-id"
+                    minSideValues["event"] shouldBe "test_event"
+                }
+            }
+        }
+
+
+        private open inner class MdcSubscriber(
+            val subscribeTofields: List<String>,
+            @Volatile var messages: Int = 0
+        ) : Subscriber() {
+            lateinit var mdcValues: Map<String, String>
+            override fun subscribe() = Subscription
+                .forEvent("test_event")
+                .withFields(*subscribeTofields.toTypedArray())
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                messages++
+                mdcValues = MDC.getCopyOfContextMap() ?: emptyMap()
+
+            }
+
+            fun kafkaValues() = mdcValues.filter {
+                it.key.startsWith("kafka")
+            }
+
+            fun nonKafkaValues() = mdcValues.filter {
+                !it.key.startsWith("kafka")
+            }
+        }
+
+
+        private inner class MinSideMdcTestBuilder() {
+            var message: String = """{ "@event_name": "test_event" }"""
+            var testConfig: MinSideMdcConfig.() -> Unit = {}
+            var mdcAssertions: (MdcSubscriber.() -> Unit)? = null
+            var subscribeTofields: List<String> = emptyList()
+        }
+
+        private fun minSideMdcTest(
+            builderAction: MinSideMdcTestBuilder.() -> Unit
+        ) {
+            val builder = MinSideMdcTestBuilder().apply(builderAction)
+
+            runBlocking {
+                val initJob = MockInitialization()
+                val testStateHolder = TestStateHolder()
+                val mdcSubscriber = MdcSubscriber(builder.subscribeTofields)
+
+
+                val application = setupApplication(
+                    testStateHolder,
+                    subscriber = mdcSubscriber,
+                    ktorModule = { routing { get("dummy") { } } },
+                    minSideMdcConfig = builder.testConfig,
+                    initializatinJob = initJob
+                )
+
+
+                val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
+                    throw throwable
+                }
+
+                val scope = CoroutineScope(Dispatchers.IO + SupervisorJob() + exceptionHandler)
+                var testJob: Job? = null
+
+                try {
+                    testJob = scope.launch(Dispatchers.IO) {
+                        application.start()
+                    }
+                    initJob.complete()
+                    await("Wait for app to start")
+                        .atMost(5, TimeUnit.SECONDS)
+                        .until(application::isRunning)
+
+                    sendMessage(builder.message)
+
+                    await("wait for messages to be processed")
+                        .atMost(5, TimeUnit.SECONDS)
+                        .until { mdcSubscriber.messages > 0 }
+                    builder.mdcAssertions!!.invoke(mdcSubscriber)
+                } finally {
+                    application.stop()
+                    await("Wait for app to stop")
+                        .atMost(5, TimeUnit.SECONDS)
+                        .until { !application.isRunning() }
+                    testJob?.cancelAndJoin()
+                }
+            }
+
+        }
+
     }
 }
 

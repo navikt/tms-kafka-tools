@@ -64,6 +64,8 @@ class KafkaApplicationBuilder internal constructor() {
 
     private var readerConfig: KafkaReaderConfig? = null
 
+    private var mdcConfigured = false
+
     fun ktorModule(module: Application.() -> Unit) {
         customizableModule = module
     }
@@ -82,9 +84,10 @@ class KafkaApplicationBuilder internal constructor() {
 
     fun minSideMdc(config: MinSideMdcConfig.() -> Unit) {
         val mdcConfig = MinSideMdcConfig().apply { config() }
+        this.mdcConfigured = true
         if (!mdcConfig.disable) {
             mdcConfig.validate()
-            subscribers.forEach { subscriber -> subscriber.minSideMdcConfig = mdcConfig }
+            subscribers.forEach { subscriber -> subscriber.configureMinSideMdc(mdcConfig) }
             log.info { "Setter opp MinSideMDC med fieldmappings ${mdcConfig.describe()}" }
         } else {
             log.warn { "Setter ikke opp MinSideMDC opp i applikasjonen, disabled er satt til true" }
@@ -116,7 +119,9 @@ class KafkaApplicationBuilder internal constructor() {
     internal fun build(): KafkaApplication {
 
         val config = requireNotNull(readerConfig) { "Kafka configuration must be defined" }
-
+        if (!mdcConfigured) {
+            throw IllegalStateException("MinSideMDC must be configured or disabled")
+        }
         val broadcaster = RecordBroadcaster(subscribers, config.eventNameFields)
 
         val reader = KafkaReader(

@@ -180,6 +180,10 @@ class MessageReplayTest {
             subscriber
         }
 
+        minSideMdc {
+            disable = true
+        }
+
         ktorModule(ktorModule)
     }
 

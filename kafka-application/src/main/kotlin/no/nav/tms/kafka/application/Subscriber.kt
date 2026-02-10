@@ -2,6 +2,7 @@ package no.nav.tms.kafka.application
 
 import com.fasterxml.jackson.databind.JsonNode
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.github.oshai.kotlinlogging.withLoggingContext
 import no.nav.tms.common.logging.TeamLogs
 import no.nav.tms.kafka.application.MessageStatus.*
 
@@ -23,23 +24,25 @@ class MessageFailed(val cause: MessageException) : MessageOutcome() {
 }
 
 abstract class Subscriber {
+    constructor()
+
     internal fun name() = this::class.simpleName ?: "anonymous-subscriber"
 
     private val log = KotlinLogging.logger {}
     private val teamLog = TeamLogs.logger(failSilently = true) { }
-    lateinit var minSideMdcConfig: MinSideMdcConfig
     private val subscription by lazy { subscribe() }
 
     abstract fun subscribe(): Subscription
     abstract suspend fun receive(jsonMessage: JsonMessage)
 
+    fun configureMinSideMdc(minSideMdcConfig: MinSideMdcConfig) {
+        subscription.minSideMdcConfig = minSideMdcConfig
+    }
+
     suspend fun onMessage(jsonMessage: JsonMessage): MessageOutcome {
         val message = jsonMessage.withFields(subscription.knownFields)
-
-
-        val result = withMinSideMdc(minSideMdcConfig.initMinSideContext(message)) {
+        val result =
             subscription.tryAccept(message, ::receive)
-        }
 
         return when (result.status) {
             Failed -> {
@@ -89,6 +92,16 @@ class Subscription private constructor(private val eventNames: List<String>) {
     private val requiredValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val rejectedValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val valueFilters: MutableMap<String, (JsonNode) -> Boolean> = mutableMapOf()
+    var minSideMdcConfig: MinSideMdcConfig? = null
+        set(value) {
+            when (value) {
+                null -> field = null
+                else -> {
+                    value.forSubscrpion(requiredFields, eventNames)
+                    field = value
+                }
+            }
+        }
 
     companion object {
         fun forEvent(name: String) = Subscription(listOf(name))
@@ -213,7 +226,11 @@ class Subscription private constructor(private val eventNames: List<String>) {
         }
 
         return try {
-            onAccept(jsonMessage)
+            withLoggingContext(
+                minSideMdcConfig?.initMinSideMdc(jsonMessage) ?: mapOf("event" to jsonMessage.eventName)
+            ) {
+                onAccept(jsonMessage)
+            }
             SubscriberResult.accepted()
         } catch (e: MessageException) {
             SubscriberResult.failed(e)
