@@ -29,20 +29,14 @@ class MinSideMdcConfig {
 
     fun initMinSideMdc(
         jsonMessage: JsonMessage,
-    ): Map<String, String> {
-        return if (disable) emptyMap() else {
-
-            val eventName: String = jsonMessage.eventName
+    ): Map<String, String>? {
+        return if (disable) null else {
             val domain: Domain by lazy { domain }
-            val producedBy: String = jsonMessage.getOrNull(producedByFieldName)?.asText()
-                ?: throw IllegalArgumentException("Produced by field '${producedByFieldName}' not found in message")
-            val minSideId: String = jsonMessage.getOrNull(idFieldName)?.asText()
-                ?: throw IllegalArgumentException("ID field '${idFieldName}' not found in message")
             mapOf(
-                "minside_id" to minSideId,
+                "minside_id" to jsonMessage[idFieldName].asText(),
                 "domain" to domain.name,
-                "produced_by" to producedBy,
-                "event" to eventName,
+                "produced_by" to jsonMessage[producedByFieldName].asText(),
+                "event" to jsonMessage.eventName,
             )
         }
     }

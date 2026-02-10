@@ -31,6 +31,7 @@ class MinSideMDCTest {
         }
         mdcAssertions = {
             kafkaValues().size shouldBe 7
+            nonKafkaValues().size shouldBe 1
             nonKafkaValues()["event"] shouldBe "test_event"
         }
     }
