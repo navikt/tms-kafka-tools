@@ -87,6 +87,9 @@ class KafkaApplicationBuilder internal constructor() {
         this.mdcConfigured = true
         if (!mdcConfig.disable) {
             mdcConfig.validate()
+            if (subscribers.isEmpty()) {
+                throw IllegalStateException("Ingen registrerte subscribere. Registrer minst en subscriber eller sett disable = true i minSideMdcConfig")
+            }
             subscribers.forEach { subscriber -> subscriber.configureMinSideMdc(mdcConfig) }
             log.info { "Setter opp MinSideMDC med fieldmappings ${mdcConfig.describe()}" }
         } else {
