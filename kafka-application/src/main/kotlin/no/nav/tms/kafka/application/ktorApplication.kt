@@ -3,9 +3,12 @@ package no.nav.tms.kafka.application
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.application.hooks.ResponseSent
 import io.ktor.server.cio.*
 import io.ktor.server.engine.*
 import io.ktor.server.metrics.micrometer.*
+import io.ktor.server.request.httpMethod
+import io.ktor.server.request.uri
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.micrometer.core.instrument.Clock
@@ -17,6 +20,7 @@ import io.prometheus.metrics.expositionformats.ExpositionFormats
 import io.prometheus.metrics.model.registry.MetricNameFilter
 import io.prometheus.metrics.model.registry.PrometheusRegistry
 import no.nav.tms.common.logging.TeamLogs
+import org.slf4j.MDC
 
 private const val isAliveEndpoint = "/isalive"
 private const val isReadyEndpoint = "/isready"
@@ -47,6 +51,8 @@ internal fun setupKtorApplication(
         install(MessageChannel) {
             broadcaster = recordBroadcaster
         }
+        // Add route-level MDC context for all API calls
+        install(ApiMdc)
 
         // Apply user-defined module
         customizeableModule()
@@ -136,5 +142,16 @@ private fun Application.metaEndpoints(
                 writer.write(this, PrometheusRegistry.defaultRegistry.scrape(filter))
             }
         }
+    }
+}
+
+val ApiMdc = createApplicationPlugin(name = "ApiMdc") {
+    onCall { call ->
+        MDC.put("route", call.request.uri)
+        MDC.put("method", call.request.httpMethod.value)
+    }
+    on(ResponseSent) {
+        MDC.remove("route")
+        MDC.remove("method")
     }
 }
