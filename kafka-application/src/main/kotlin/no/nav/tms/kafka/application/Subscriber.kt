@@ -97,7 +97,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
             when (value) {
                 null -> field = null
                 else -> {
-                    value.forSubscrpion(requiredFields, eventNames)
+                    value.forSubscrpion(requiredFields, optionalFields, eventNames)
                     field = value
                 }
             }

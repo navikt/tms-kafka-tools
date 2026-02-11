@@ -1,5 +1,7 @@
 package no.nav.tms.kafka.application
 
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.apache.kafka.clients.CommonClientConfigs
@@ -13,6 +15,7 @@ import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.common.serialization.StringSerializer
 import org.testcontainers.kafka.ConfluentKafkaContainer
 import org.testcontainers.utility.DockerImageName
+import java.net.ServerSocket
 import java.time.Duration
 import java.time.Instant
 import java.util.Properties
@@ -122,4 +125,14 @@ class MockInitialization {
     fun complete() {
         isDone = true
     }
+}
+
+class TestClient {
+
+    val port = ServerSocket(0).use { it.localPort }
+    private val url = "http://localhost:$port"
+
+    private val httpClient = HttpClient { }
+
+    suspend fun get(path: String) = httpClient.get("$url$path")
 }

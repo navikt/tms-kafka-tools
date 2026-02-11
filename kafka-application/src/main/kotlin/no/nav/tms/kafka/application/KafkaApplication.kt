@@ -82,6 +82,15 @@ class KafkaApplicationBuilder internal constructor() {
         this.startupHook = startupHook
     }
 
+    /**
+     * Configure MDC-fields [domain,event, produced_by og minside_id] for messages from kafka based.
+     *   @param disable  set to true to disable MDC configuration.
+     *   @param idFieldName  name of the  field in JsonMessage som that contains the uniqe identifier for the message. This field must be of type String and not be blank.
+     *   @param producedByFieldName name of the field in JsonMessage that contains the name of the producer of the message. This field must be of type String and not be blank.
+     *   @param domain domain of the message. Predefined domains are "utkast", "varsel" and "microfrontend". Custom domains can be created with [Domain.custom(name)] but must not contain the predefined domain names.Must be 4-15 characters and can only contain lowercase letters and hyphens.
+     *   @param idProucer function that produces the value for the minside_id field in MDC based on the content of the JsonMessage. This must be supplied if idFieldName is not included as a required field in the subscription for the events. If idFieldName is present this producer will be ignored and the value for minside_id will be taken from the field defined by idFieldName.
+     *
+     */
     fun minSideMdc(config: MinSideMdcConfig.() -> Unit) {
         val mdcConfig = MinSideMdcConfig().apply { config() }
         this.mdcConfigured = true
@@ -188,9 +197,7 @@ class KafkaReaderConfigBuilder internal constructor() {
         require(kafkaTopics.isNotEmpty()) { "Must supply at least 1 kafka topic from which to read" }
         requireNotNull(groupId) { "Must define groupId" }
 
-        val nameFields = if (eventNameFields.isNotEmpty()) {
-            eventNameFields
-        } else {
+        val nameFields = eventNameFields.ifEmpty {
             listOf(JsonMessage.DEFAULT_EVENT_NAME)
         }
 

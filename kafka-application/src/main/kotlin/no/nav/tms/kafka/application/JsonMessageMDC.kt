@@ -5,6 +5,7 @@ class MinSideMdcConfig {
     lateinit var idFieldName: String
     lateinit var producedByFieldName: String
     lateinit var domain: Domain
+    lateinit var idProducer: () -> String
 
     fun validate() {
         if (!disable) {
@@ -30,10 +31,25 @@ class MinSideMdcConfig {
     fun initMinSideMdc(
         jsonMessage: JsonMessage,
     ): Map<String, String>? {
-        return if (disable) null else {
+        return if (disable) null
+        else {
             val domain: Domain by lazy { domain }
+            val id = when {
+                jsonMessage.json.has(idFieldName) -> jsonMessage[idFieldName].asText()
+                ::idProducer.isInitialized -> {
+                    val id = idProducer()
+                    jsonMessage.putString(idFieldName, id)
+                    id
+                }
+                else -> throw MinSideMdcConfigException(
+                    "idProducer må være definert i MinSideMdcConfig eller feltet '$idFieldName' må være tilstede i jsonMessage for event '${jsonMessage.eventName}'"
+                )
+            }
+
+
+
             mapOf(
-                "minside_id" to jsonMessage[idFieldName].asText(),
+                "minside_id" to id,
                 "domain" to domain.name,
                 "produced_by" to jsonMessage[producedByFieldName].asText(),
                 "event" to jsonMessage.eventName,
@@ -41,17 +57,33 @@ class MinSideMdcConfig {
         }
     }
 
-    fun forSubscrpion(subscribedFields: MutableSet<String>, eventNames: List<String>): MinSideMdcConfig? {
+    fun forSubscrpion(
+        requiredFields: Set<String>,
+        optionalFields: Set<String>,
+        eventNames: List<String>
+    ): MinSideMdcConfig? {
         if (disable)
             return null
-        listOf(idFieldName, producedByFieldName).forEach { fieldName ->
-            if (!subscribedFields.contains(fieldName)) {
+        if (!requiredFields.contains(idFieldName)) {
+            if (!::idProducer.isInitialized && optionalFields.contains(idFieldName)) {
                 throw MinSideMdcConfigException(
-                    "Feltet '$fieldName' er ikke definert i subscription for eventene ${eventNames.joinToString(", ")}. "
+                    "idProducer må være definert i MinSideMdcConfig når idFieldName '$idFieldName' er optional field i subscription for eventene ${
+                        eventNames.joinToString(
+                            ","
+                        )
+                    }. "
                 )
             }
         }
+
+        if (!requiredFields.contains(producedByFieldName)) {
+            throw MinSideMdcConfigException(
+                "Feltet '$producedByFieldName' er ikke definert i subscription for eventene ${eventNames.joinToString(", ")}. "
+            )
+        }
+
         return this
+
     }
 }
 

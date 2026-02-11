@@ -1,15 +1,12 @@
 package no.nav.tms.kafka.application
 
 import io.kotest.matchers.shouldBe
-import io.ktor.client.*
-import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import no.nav.tms.kafka.application.KafkaTestContainer.sendMessage
@@ -18,12 +15,8 @@ import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import java.net.ServerSocket
-import java.time.Duration
-import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import java.util.concurrent.TimeoutException
 
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -193,16 +186,6 @@ class KafkaApplicationIT {
 
         ktorModule(ktorModule)
     }
-}
-
-private class TestClient {
-
-    val port = ServerSocket(0).use { it.localPort }
-    private val url = "http://localhost:$port"
-
-    private val httpClient = HttpClient { }
-
-    suspend fun get(path: String) = httpClient.get("$url$path")
 }
 
 private class GreenBeadsTestStateHolder : TestStateHolder() {

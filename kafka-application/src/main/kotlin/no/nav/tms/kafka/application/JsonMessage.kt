@@ -1,6 +1,7 @@
 package no.nav.tms.kafka.application
 
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.module.kotlin.contains
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -23,6 +24,11 @@ class JsonMessage internal constructor(
         json = json.keepFields(fields),
         metadata = metadata
     )
+
+    internal fun putString(key:String, value: String){
+        json as ObjectNode
+        json.put(key, value)
+    }
 
     companion object {
         const val DEFAULT_EVENT_NAME = "@event_name"
