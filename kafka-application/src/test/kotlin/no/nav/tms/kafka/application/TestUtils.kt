@@ -71,7 +71,6 @@ object KafkaTestContainer {
         val admin = AdminClient.create(mapOf("bootstrap.servers" to instance.bootstrapServers))
         try {
             val topics = admin.listTopics().names().get()
-            println("[KafkaTestContainer] Existing topics before clean: $topics")
             if (topics.contains(TEST_TOPIC)) {
                 println("[KafkaTestContainer] Deleting topic: $TEST_TOPIC")
                 admin.deleteTopics(listOf(TEST_TOPIC)).all().get()
@@ -83,8 +82,6 @@ object KafkaTestContainer {
                 admin.createTopics(listOf(NewTopic(TEST_TOPIC, 1, 1))).all().get()
                 println("[KafkaTestContainer] Topic created: $TEST_TOPIC")
             }
-            val topicsAfter = admin.listTopics().names().get()
-            println("[KafkaTestContainer] Existing topics after clean: $topicsAfter")
         } finally {
             admin.close()
         }
