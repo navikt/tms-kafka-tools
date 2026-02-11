@@ -64,7 +64,7 @@ class KafkaApplicationBuilder internal constructor() {
 
     private var readerConfig: KafkaReaderConfig? = null
 
-    private var mdcConfigured = false
+    private var mdcConfig: MinSideMdcConfig? = null
 
     fun ktorModule(module: Application.() -> Unit) {
         customizableModule = module
@@ -92,18 +92,7 @@ class KafkaApplicationBuilder internal constructor() {
      *
      */
     fun minSideMdc(config: MinSideMdcConfig.() -> Unit) {
-        val mdcConfig = MinSideMdcConfig().apply { config() }
-        this.mdcConfigured = true
-        if (!mdcConfig.disable) {
-            mdcConfig.validate()
-            if (subscribers.isEmpty()) {
-                throw IllegalStateException("Ingen registrerte subscribere. Registrer minst en subscriber eller sett disable = true i minSideMdcConfig")
-            }
-            subscribers.forEach { subscriber -> subscriber.configureMinSideMdc(mdcConfig) }
-            log.info { "Setter opp MinSideMDC med fieldmappings ${mdcConfig.describe()}" }
-        } else {
-            log.warn { "Setter ikke opp MinSideMDC opp i applikasjonen, disabled er satt til true" }
-        }
+        mdcConfig = MinSideMdcConfig().apply { config() }
     }
 
     fun onReady(readyHook: (ApplicationEnvironment) -> Unit) {
@@ -131,9 +120,21 @@ class KafkaApplicationBuilder internal constructor() {
     internal fun build(): KafkaApplication {
 
         val config = requireNotNull(readerConfig) { "Kafka configuration must be defined" }
-        if (!mdcConfigured) {
-            throw IllegalStateException("MinSideMDC must be configured or disabled")
+
+        when {
+            mdcConfig == null -> throw IllegalStateException("MinSideMDC must be configured or disabled")
+            mdcConfig!!.disable -> log.warn { "MinSideMDC is disabled, MDC fields will not be set for messages from Kafka" }
+            else -> {
+                mdcConfig!!.validate()
+                if (subscribers.isEmpty()) {
+                    throw IllegalStateException("Ingen registrerte subscribere. Registrer minst en subscriber eller sett disable = true i minSideMdcConfig")
+                }
+                subscribers.forEach { subscriber -> subscriber.configureMinSideMdc(mdcConfig!!) }
+                log.info { "Setter opp MinSideMDC med fieldmappings ${mdcConfig!!.describe()}" }
+            }
         }
+
+
         val broadcaster = RecordBroadcaster(subscribers, config.eventNameFields)
 
         val reader = KafkaReader(
