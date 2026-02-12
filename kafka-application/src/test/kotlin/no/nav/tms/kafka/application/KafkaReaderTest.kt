@@ -7,6 +7,7 @@ import io.kotest.matchers.longs.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.longs.shouldBeLessThanOrEqual
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.*
+import no.nav.tms.kafka.application.KafkaTestContainer.TEST_TOPIC
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
@@ -14,9 +15,7 @@ import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
 import org.awaitility.Awaitility
 import org.junit.jupiter.api.*
-import org.testcontainers.kafka.ConfluentKafkaContainer
 import org.testcontainers.shaded.org.awaitility.Awaitility.await
-import org.testcontainers.utility.DockerImageName
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -25,12 +24,7 @@ import java.util.concurrent.TimeUnit
 class KafkaReaderTest {
     private val groupId = "test-app"
 
-    private val testTopic = "test-topic"
-
     private lateinit var consumerFactory: ConsumerFactory
-
-    private val kafkaContainer = ConfluentKafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.8.0"))
-
     private lateinit var producer: KafkaProducer<String, String>
     private lateinit var adminClient: AdminClient
 
@@ -38,23 +32,22 @@ class KafkaReaderTest {
 
     @BeforeAll
     fun setup() {
-        kafkaContainer.start()
+        KafkaTestContainer.cleanTopic()
 
         consumerFactory = ConsumerFactory.init(
             clientId = "test-app",
             enableSsl = false,
-            env = mapOf("KAFKA_BROKERS" to kafkaContainer.bootstrapServers)
+            env = KafkaTestContainer.applicationKafkaEnv
         )
 
-        val testFactory = KafkaTestFactory(kafkaContainer)
-        producer = testFactory.createProducer()
-        adminClient = testFactory.createAdminClient()
+        producer = KafkaTestContainer.createProducer()
+        adminClient = KafkaTestContainer.createAdminClient()
     }
 
     @AfterAll
     fun teardown() {
+        adminClient.close()
         producer.close()
-        kafkaContainer.stop()
     }
 
     @AfterEach
@@ -95,7 +88,7 @@ class KafkaReaderTest {
         val reader = runTestReader(subscribers = listOf(failingSubscriber))
 
         producer.send(
-            ProducerRecord(testTopic, UUID.randomUUID().toString(), """{ "@event_name": "test" }""")
+            ProducerRecord(TEST_TOPIC, UUID.randomUUID().toString(), """{ "@event_name": "test" }""")
         )
 
         await("wait until the kafkaReader stops")
@@ -108,10 +101,12 @@ class KafkaReaderTest {
     @Test
     fun `in case of unexpected exception, the offset committed is the erroneous record`() {
         val offsets = (0..100).map {
-            producer.send(ProducerRecord(
-                testTopic,
-                UUID.randomUUID().toString(),
-                """{"@event_name": "offset-test", "index": $it}""")
+            producer.send(
+                ProducerRecord(
+                    TEST_TOPIC,
+                    UUID.randomUUID().toString(),
+                    """{"@event_name": "offset-test", "index": $it}"""
+                )
             )
                 .get()
                 .offset()
@@ -146,7 +141,7 @@ class KafkaReaderTest {
             .listConsumerGroupOffsets(groupId)
             ?.partitionsToOffsetAndMetadata()
             ?.get()
-            ?.getValue(TopicPartition(testTopic, 0))
+            ?.getValue(TopicPartition(TEST_TOPIC, 0))
             ?: fail { "was not able to fetch committed offset for consumer $groupId" }
 
         expectedOffset shouldBe actualOffset.offset()
@@ -155,10 +150,12 @@ class KafkaReaderTest {
     @Test
     fun `in case of MessageException, processing continues `() {
         val offsets = (0..100).map {
-            producer.send(ProducerRecord(
-                testTopic,
-                UUID.randomUUID().toString(),
-                """{"@event_name": "offset-test", "index": $it}""")
+            producer.send(
+                ProducerRecord(
+                    TEST_TOPIC,
+                    UUID.randomUUID().toString(),
+                    """{"@event_name": "offset-test", "index": $it}"""
+                )
             )
                 .get()
                 .offset()
@@ -198,7 +195,7 @@ class KafkaReaderTest {
             .listConsumerGroupOffsets(groupId)
             ?.partitionsToOffsetAndMetadata()
             ?.get()
-            ?.getValue(TopicPartition(testTopic, 0))
+            ?.getValue(TopicPartition(TEST_TOPIC, 0))
             ?: fail { "was not able to fetch committed offset for consumer $groupId" }
 
         actualOffset.offset() shouldBeGreaterThan failingOffset
@@ -206,7 +203,7 @@ class KafkaReaderTest {
 
     @Test
     fun `ignore tombstone messages`() {
-        val recordMetadata = sendAndAwait(testTopic, null)
+        val recordMetadata = sendAndAwait(TEST_TOPIC, null)
 
         runTestReader()
 
@@ -256,7 +253,9 @@ class KafkaReaderTest {
 
             override fun subscribe() = Subscription.forEvent("break")
 
-            override suspend fun receive(jsonMessage: JsonMessage) { breakSignalled = true }
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                breakSignalled = true
+            }
         }
 
         listOf(
@@ -289,7 +288,9 @@ class KafkaReaderTest {
 
             override fun subscribe() = Subscription.forEvent("break")
 
-            override suspend fun receive(jsonMessage: JsonMessage) { breakSignalled = true }
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                breakSignalled = true
+            }
         }
 
         listOf(
@@ -480,13 +481,13 @@ class KafkaReaderTest {
             }
         }
 
-        sendAndAwait(testTopic, """{ "@event_name": "unrelated" }""")
+        sendAndAwait(TEST_TOPIC, """{ "@event_name": "unrelated" }""")
 
         val reader = runTestReader(subscribers = listOf(slowscriber))
 
         reader.stop()
 
-        val recordMetadata = sendAndAwait(testTopic, """{ "@event_name": "event" }""")
+        val recordMetadata = sendAndAwait(TEST_TOPIC, """{ "@event_name": "event" }""")
 
         slowscriber.didRead shouldBe false
 
@@ -511,7 +512,7 @@ class KafkaReaderTest {
     """
 
     private fun sendTestMessage(value: String) =
-        producer.send(ProducerRecord(testTopic, UUID.randomUUID().toString(), value))
+        producer.send(ProducerRecord(TEST_TOPIC, UUID.randomUUID().toString(), value))
 
 
     private fun runTestReader(
@@ -520,7 +521,8 @@ class KafkaReaderTest {
         subscribers: List<Subscriber> = emptyList()
     ): KafkaReader {
 
-        val reader = KafkaReader(consumerFactory, groupId, listOf(testTopic), RecordBroadcaster(subscribers, eventNameFields))
+        val reader =
+            KafkaReader(consumerFactory, groupId, listOf(TEST_TOPIC), RecordBroadcaster(subscribers, eventNameFields))
 
         kafkaReaders.add(reader)
 

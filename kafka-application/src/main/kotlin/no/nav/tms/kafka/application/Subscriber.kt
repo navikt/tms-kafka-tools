@@ -2,6 +2,7 @@ package no.nav.tms.kafka.application
 
 import com.fasterxml.jackson.databind.JsonNode
 import io.github.oshai.kotlinlogging.KotlinLogging
+import io.github.oshai.kotlinlogging.withLoggingContext
 import no.nav.tms.common.logging.TeamLogs
 import no.nav.tms.kafka.application.MessageStatus.*
 
@@ -10,22 +11,25 @@ abstract class MessageOutcome {
     internal abstract val status: MessageStatus
 }
 
-object MessageAccepted: MessageOutcome() {
+object MessageAccepted : MessageOutcome() {
     override val status: MessageStatus = Accepted
 }
-object MessageIgnored: MessageOutcome() {
+
+object MessageIgnored : MessageOutcome() {
     override val status: MessageStatus = Ignored
 }
-class MessageFailed(val cause: MessageException): MessageOutcome() {
+
+class MessageFailed(val cause: MessageException) : MessageOutcome() {
     override val status: MessageStatus = Failed
 }
 
 abstract class Subscriber {
+    constructor()
+
     internal fun name() = this::class.simpleName ?: "anonymous-subscriber"
 
     private val log = KotlinLogging.logger {}
     private val teamLog = TeamLogs.logger(failSilently = true) { }
-
     private val subscription by lazy { subscribe() }
 
     abstract fun subscribe(): Subscription
@@ -34,7 +38,9 @@ abstract class Subscriber {
     suspend fun onMessage(jsonMessage: JsonMessage): MessageOutcome {
         val message = jsonMessage.withFields(subscription.knownFields)
 
-        val result = subscription.tryAccept(message, ::receive)
+        val result = withLoggingContext(mapOf("subscriber" to name())) {
+            subscription.tryAccept(message, ::receive)
+        }
 
         return when (result.status) {
             Failed -> {
@@ -42,16 +48,22 @@ abstract class Subscriber {
                 teamLog.warn { "Subscriber [${name()}] received failing message [${message.json}] due to [${result.reason}]." }
                 MessageFailed(result.cause!!)
             }
+
             Ignored -> {
                 log.debug { "Subscriber [${name()}] ignored message with name [${message.eventName}]." }
                 teamLog.debug { "Subscriber [${name()}] rejected message [${message.json}] due to [${result.reason}]." }
                 MessageIgnored
             }
+
             Accepted -> {
                 log.debug { "Subscriber [${name()}] accepted message with name [${message.eventName}]." }
                 MessageAccepted
             }
         }
+    }
+
+    internal fun configureMinSideMdc(minSideMdcConfig: MinSideMdcConfig) {
+        subscription.useMinSideMdcConfig(minSideMdcConfig)
     }
 }
 
@@ -83,8 +95,20 @@ class Subscription private constructor(private val eventNames: List<String>) {
     private val rejectedValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val valueFilters: MutableMap<String, (JsonNode) -> Boolean> = mutableMapOf()
 
+    private var mdcContextProvider: (JsonMessage) -> Map<String, String> = { jsonMessage ->
+        mapOf("event" to jsonMessage.eventName)
+    }
+
+    internal fun useMinSideMdcConfig(config: MinSideMdcConfig) {
+        config.validateSubscription(requiredFields, eventNames)
+
+        mdcContextProvider = { jsonMessage ->
+            config.mdcMapFromMessage(jsonMessage)
+        }
+    }
+
     companion object {
-        fun forEvent(name: String)  = Subscription(listOf(name))
+        fun forEvent(name: String) = Subscription(listOf(name))
         fun forEvents(name: String, vararg names: String) = Subscription(listOf(name) + names.toList())
         fun forAllEvents() = Subscription(emptyList())
     }
@@ -107,6 +131,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
         }
 
         knownFields.add(field)
+        requiredFields.add(field)
         requiredValues += field to listOf(value)
     }
 
@@ -118,6 +143,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
         }
 
         knownFields.add(field)
+        requiredFields.add(field)
         requiredValues += field to values.asList()
     }
 
@@ -188,7 +214,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
                 } else {
                     null
                 }
-            }catch (e: Exception) {
+            } catch (e: Exception) {
                 field to node
             }
         }
@@ -206,7 +232,9 @@ class Subscription private constructor(private val eventNames: List<String>) {
         }
 
         return try {
-            onAccept(jsonMessage)
+            withLoggingContext(mdcContextProvider(jsonMessage)) {
+                onAccept(jsonMessage)
+            }
             SubscriberResult.accepted()
         } catch (e: MessageException) {
             SubscriberResult.failed(e)
@@ -232,7 +260,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
     }
 }
 
-class SubscriptionException(message: String): IllegalArgumentException(message)
+class SubscriptionException(message: String) : IllegalArgumentException(message)
 
 internal data class IgnoreReason(
     val ignoredEvent: String?,
