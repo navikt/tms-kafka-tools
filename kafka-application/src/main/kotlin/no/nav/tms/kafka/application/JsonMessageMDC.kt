@@ -1,89 +1,41 @@
 package no.nav.tms.kafka.application
 
-class MinSideMdcConfig {
-    var disable: Boolean = false
-    lateinit var idFieldName: String
-    lateinit var producedByFieldName: String
-    lateinit var domain: Domain
-    lateinit var idProducer: () -> String
+internal class MinSideMdcConfig(
+    val domain: Domain,
+    val idFieldName: String,
+    val producedByFieldName: String,
+    val allowMissingProducerField: Boolean
+) {
+    fun describe() = "[idFieldName=$idFieldName, producedByFieldName=$producedByFieldName, domain-> ${domain.name}]"
 
-    fun validate() {
-        if (!disable) {
-            val contextMessage = "Feil i MinSideMdcConfig: "
-            val validIdField = ::idFieldName.isInitialized && idFieldName.isNotBlank()
-            val validProducedByField = ::producedByFieldName.isInitialized && producedByFieldName.isNotBlank()
-            val validDomainField = ::domain.isInitialized
-
-            if (!validIdField || !validProducedByField || !validDomainField) {
-                throw MinSideMdcConfigException(
-                    contextMessage + "Følgende felt må være satt og ikke blanke: " +
-                            "idFieldName, producedByFieldName, domain"
-                )
-            }
-        }
-    }
-
-    fun describe(): String =
-        """[idFieldName-> $idFieldName],[producedByFieldName-> $producedByFieldName],[domain-> ${domain.name}]
-        """.trimIndent()
-
-
-    fun initMinSideMdc(
+    fun mdcMapFromMessage(
         jsonMessage: JsonMessage,
-    ): Map<String, String>? {
-        return if (disable) null
-        else {
-            val domain: Domain by lazy { domain }
-            val id = when {
-                jsonMessage.json.has(idFieldName) -> jsonMessage[idFieldName].asText()
-                ::idProducer.isInitialized -> {
-                    val id = idProducer()
-                    jsonMessage.putString(idFieldName, id)
-                    id
-                }
-                else -> throw MinSideMdcConfigException(
-                    "idProducer må være definert i MinSideMdcConfig eller feltet '$idFieldName' må være tilstede i jsonMessage for event '${jsonMessage.eventName}'"
-                )
-            }
+    ): Map<String, String> {
+        val mdcMap = mutableMapOf(
+            "minside_id" to jsonMessage[idFieldName].asText(),
+            "domain" to domain.name,
+            "event" to jsonMessage.eventName,
+        )
 
-
-
-            mapOf(
-                "minside_id" to id,
-                "domain" to domain.name,
-                "produced_by" to jsonMessage[producedByFieldName].asText(),
-                "event" to jsonMessage.eventName,
-            )
+        jsonMessage.getOrNull(producedByFieldName)?.let {
+            mdcMap["produced_by"] = it.asText()
         }
+
+        return mdcMap
     }
 
-    fun forSubscrpion(
-        requiredFields: Set<String>,
-        optionalFields: Set<String>,
-        eventNames: List<String>
-    ): MinSideMdcConfig? {
-        if (disable)
-            return null
-        if (!requiredFields.contains(idFieldName)) {
-            if (!::idProducer.isInitialized && optionalFields.contains(idFieldName)) {
-                throw MinSideMdcConfigException(
-                    "idProducer må være definert i MinSideMdcConfig når idFieldName '$idFieldName' er optional field i subscription for eventene ${
-                        eventNames.joinToString(
-                            ","
-                        )
-                    }. "
-                )
-            }
-        }
-
-        if (!requiredFields.contains(producedByFieldName)) {
+    fun validateSubscription(subscribedFields: MutableSet<String>, eventNames: List<String>) {
+        if (!subscribedFields.contains(idFieldName)) {
             throw MinSideMdcConfigException(
-                "Feltet '$producedByFieldName' er ikke definert i subscription for eventene ${eventNames.joinToString(", ")}. "
+                "Id-felt '$idFieldName' er ikke definert i subscription for eventene $eventNames."
             )
         }
 
-        return this
-
+        if (!allowMissingProducerField && !subscribedFields.contains(producedByFieldName)) {
+            throw MinSideMdcConfigException(
+                "Producer-felt '$producedByFieldName' er ikke definert i subscription for eventene $eventNames."
+            )
+        }
     }
 }
 

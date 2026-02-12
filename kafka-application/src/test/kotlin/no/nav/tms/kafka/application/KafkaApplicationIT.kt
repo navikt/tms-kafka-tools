@@ -58,7 +58,7 @@ class KafkaApplicationIT {
         // Mock some init job (flyway migration etc..)
         val initializatinJob = MockInitialization()
 
-        val application = setupApplication(stateHolder, greenBeadCounter, ktorApi, { disable = true }, initializatinJob)
+        val application = setupApplication(stateHolder, greenBeadCounter, ktorApi, { enabled = false }, initializatinJob)
 
         // Start application and verify startup hook
 
@@ -141,8 +141,8 @@ class KafkaApplicationIT {
         stateHolder: GreenBeadsTestStateHolder,
         subscriber: Subscriber,
         ktorModule: Application.() -> Unit,
-        minSideMdcConfig: MinSideMdcConfig.() -> Unit = {
-            disable = true
+        minSideMdcConfig: MinSideMdcConfigBuilder.() -> Unit = {
+            enabled = false
         },
         initializatinJob: MockInitialization
     ) = KafkaApplication.build {
