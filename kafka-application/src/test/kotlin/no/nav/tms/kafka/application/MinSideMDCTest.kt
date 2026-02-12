@@ -120,10 +120,19 @@ class MinSideMDCTest {
                 messageContent = mapOf(
                     "id" to "test-id"
                 )
-                subscriberAssertions = {}
+                subscriberAssertions = {
+                    kafkaValues().size shouldBe 7
+                    val nonKafkaValues = nonKafkaValues()
+                    nonKafkaValues.size shouldBe 4
+                    nonKafkaValues["domain"] shouldBe "microfrontend"
+                    nonKafkaValues["produced_by"] shouldBe null
+                    nonKafkaValues["minside_id"] shouldBe "test-id"
+                    nonKafkaValues["event"] shouldBe "test_event"
+                }
             }
         }
     }
+
 
     @Test
     fun `Legger til mdc felter`() {
@@ -199,7 +208,6 @@ class MinSideMDCTest {
                     withOptionalFields(builder.optionalIdFieldName!!)
                 }
             }
-
 
         override suspend fun receive(jsonMessage: JsonMessage) {
             messages.incrementAndGet()
