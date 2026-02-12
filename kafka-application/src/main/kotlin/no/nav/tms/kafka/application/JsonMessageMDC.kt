@@ -1,9 +1,10 @@
 package no.nav.tms.kafka.application
 
 internal class MinSideMdcConfig(
+    val domain: Domain,
     val idFieldName: String,
     val producedByFieldName: String,
-    val domain: Domain
+    val allowMissingProducerField: Boolean
 ) {
     fun describe() = "[idFieldName=$idFieldName, producedByFieldName=$producedByFieldName, domain-> ${domain.name}]"
 
@@ -30,7 +31,7 @@ internal class MinSideMdcConfig(
             )
         }
 
-        if (!subscribedFields.contains(producedByFieldName)) {
+        if (!allowMissingProducerField && !subscribedFields.contains(producedByFieldName)) {
             throw MinSideMdcConfigException(
                 "Producer-felt '$producedByFieldName' er ikke definert i subscription for eventene $eventNames."
             )

@@ -228,9 +228,10 @@ class KafkaReaderConfigBuilder internal constructor() {
 
 class MinSideMdcConfigBuilder internal constructor(
     var enabled: Boolean = true,
+    var domain: Domain? = null,
     var idFieldName: String? = null,
     var producedByFieldName: String? = null,
-    var domain: Domain? = null
+    var allowMissingProducerField: Boolean = false
 ) {
     internal fun validate() {
         if (!enabled) {
@@ -252,6 +253,7 @@ class MinSideMdcConfigBuilder internal constructor(
         idFieldName = this.idFieldName!!,
         producedByFieldName = this.producedByFieldName!!,
         domain = this.domain!!,
+        allowMissingProducerField = this.allowMissingProducerField
     )
 }
 

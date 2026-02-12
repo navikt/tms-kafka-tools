@@ -12,6 +12,7 @@ import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.MDC
 import java.util.concurrent.TimeUnit
@@ -106,6 +107,25 @@ class MinSideMDCTest {
     }
 
     @Test
+    fun `tillater at producer mangler fra subscription dersom allowMissingProducerField er satt`() {
+        assertDoesNotThrow {
+            minSideMdcTest {
+                subscribeTofields = listOf("id", "@event_name")
+                testConfig = {
+                    domain = Domain.microfrontend
+                    producedByFieldName = "producer"
+                    idFieldName = "id"
+                    allowMissingProducerField = true
+                }
+                messageContent = mapOf(
+                    "id" to "test-id"
+                )
+                subscriberAssertions = {}
+            }
+        }
+    }
+
+    @Test
     fun `Legger til mdc felter`() {
         minSideMdcTest {
             subscribeToEvent = "mdc_event"
@@ -165,7 +185,6 @@ class MinSideMDCTest {
                 }
             }
         }
-
     }
 
     private class MdcSubscriber(
