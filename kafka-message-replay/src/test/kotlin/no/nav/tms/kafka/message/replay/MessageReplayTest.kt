@@ -181,7 +181,7 @@ class MessageReplayTest {
         }
 
         minSideMdc {
-            disable = true
+            enabled = false
         }
 
         ktorModule(ktorModule)

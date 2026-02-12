@@ -64,6 +64,7 @@ class KafkaApplicationBuilder internal constructor() {
 
     private var readerConfig: KafkaReaderConfig? = null
 
+    private var mdcConfigured = false
     private var mdcConfig: MinSideMdcConfig? = null
 
     fun ktorModule(module: Application.() -> Unit) {
@@ -82,17 +83,22 @@ class KafkaApplicationBuilder internal constructor() {
         this.startupHook = startupHook
     }
 
-    /**
-     * Configure MDC-fields [domain,event, produced_by og minside_id] for messages from kafka based.
-     *   @param disable  set to true to disable MDC configuration.
-     *   @param idFieldName  name of the  field in JsonMessage som that contains the uniqe identifier for the message. This field must be of type String and not be blank.
-     *   @param producedByFieldName name of the field in JsonMessage that contains the name of the producer of the message. This field must be of type String and not be blank.
-     *   @param domain domain of the message. Predefined domains are "utkast", "varsel" and "microfrontend". Custom domains can be created with [Domain.custom(name)] but must not contain the predefined domain names.Must be 4-15 characters and can only contain lowercase letters and hyphens.
-     *   @param idProucer function that produces the value for the minside_id field in MDC based on the content of the JsonMessage. This must be supplied if idFieldName is not included as a required field in the subscription for the events. If idFieldName is present this producer will be ignored and the value for minside_id will be taken from the field defined by idFieldName.
-     *
-     */
-    fun minSideMdc(config: MinSideMdcConfig.() -> Unit) {
-        mdcConfig = MinSideMdcConfig().apply { config() }
+    fun minSideMdc(configBuilder: MinSideMdcConfigBuilder.() -> Unit) {
+        if (this.mdcConfigured) {
+            throw MinSideMdcConfigException("Kan ikke configurere minside-mdc flere ganger")
+        }
+
+        val mdcConfigBuilder = MinSideMdcConfigBuilder()
+            .apply { configBuilder() }
+            .apply { validate() }
+
+        if (mdcConfigBuilder.enabled) {
+            this.mdcConfig = mdcConfigBuilder.build()
+        } else {
+            this.mdcConfig = null
+        }
+
+        this.mdcConfigured = true
     }
 
     fun onReady(readyHook: (ApplicationEnvironment) -> Unit) {
@@ -120,21 +126,9 @@ class KafkaApplicationBuilder internal constructor() {
     internal fun build(): KafkaApplication {
 
         val config = requireNotNull(readerConfig) { "Kafka configuration must be defined" }
-
-        when {
-            mdcConfig == null -> throw IllegalStateException("MinSideMDC must be configured or disabled")
-            mdcConfig!!.disable -> log.warn { "MinSideMDC is disabled, MDC fields will not be set for messages from Kafka" }
-            else -> {
-                mdcConfig!!.validate()
-                if (subscribers.isEmpty()) {
-                    throw IllegalStateException("Ingen registrerte subscribere. Registrer minst en subscriber eller sett disable = true i minSideMdcConfig")
-                }
-                subscribers.forEach { subscriber -> subscriber.configureMinSideMdc(mdcConfig!!) }
-                log.info { "Setter opp MinSideMDC med fieldmappings ${mdcConfig!!.describe()}" }
-            }
+        if (!mdcConfigured) {
+            throw IllegalStateException("MinSideMDC must be configured or disabled")
         }
-
-
         val broadcaster = RecordBroadcaster(subscribers, config.eventNameFields)
 
         val reader = KafkaReader(
@@ -158,6 +152,16 @@ class KafkaApplicationBuilder internal constructor() {
         }
 
         healthChecks.add(readerHealthCheck)
+
+        mdcConfig?.let {
+            log.info { "Setter opp MinSideMDC med fieldmappings ${it.describe()}" }
+            subscribers.forEach { subscriber ->
+                subscriber.configureMinSideMdc(it)
+            }
+        } ?: run {
+            log.info { "Setter ikke opp MinSideMDC opp i applikasjonen" }
+        }
+
 
         return KafkaApplication(
             reader = reader,
@@ -220,6 +224,35 @@ class KafkaReaderConfigBuilder internal constructor() {
             UUID.randomUUID().toString()
         }
     }
+}
+
+class MinSideMdcConfigBuilder internal constructor(
+    var enabled: Boolean = true,
+    var idFieldName: String? = null,
+    var producedByFieldName: String? = null,
+    var domain: Domain? = null
+) {
+    internal fun validate() {
+        if (!enabled) {
+            return
+        }
+
+        val invalidIdField = idFieldName.isNullOrBlank()
+        val invalidProducedByField = producedByFieldName.isNullOrBlank()
+        val invalidDomainField = domain == null
+
+        if (invalidIdField || invalidProducedByField || invalidDomainField) {
+            throw MinSideMdcConfigException(
+                "Følgende felt må være satt og ikke blanke: idFieldName, producedByFieldName, domain]"
+            )
+        }
+    }
+
+    internal fun build() = MinSideMdcConfig(
+        idFieldName = this.idFieldName!!,
+        producedByFieldName = this.producedByFieldName!!,
+        domain = this.domain!!,
+    )
 }
 
 internal class KafkaReaderConfig(

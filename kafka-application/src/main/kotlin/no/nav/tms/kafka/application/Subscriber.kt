@@ -35,14 +35,12 @@ abstract class Subscriber {
     abstract fun subscribe(): Subscription
     abstract suspend fun receive(jsonMessage: JsonMessage)
 
-    fun configureMinSideMdc(minSideMdcConfig: MinSideMdcConfig) {
-        subscription.minSideMdcConfig = minSideMdcConfig
-    }
-
     suspend fun onMessage(jsonMessage: JsonMessage): MessageOutcome {
         val message = jsonMessage.withFields(subscription.knownFields)
-        val result =
+
+        val result = withLoggingContext(mapOf("subscriber" to name())) {
             subscription.tryAccept(message, ::receive)
+        }
 
         return when (result.status) {
             Failed -> {
@@ -62,6 +60,10 @@ abstract class Subscriber {
                 MessageAccepted
             }
         }
+    }
+
+    internal fun configureMinSideMdc(minSideMdcConfig: MinSideMdcConfig) {
+        subscription.useMinSideMdcConfig(minSideMdcConfig)
     }
 }
 
@@ -92,16 +94,18 @@ class Subscription private constructor(private val eventNames: List<String>) {
     private val requiredValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val rejectedValues: MutableMap<String, List<Any>> = mutableMapOf()
     private val valueFilters: MutableMap<String, (JsonNode) -> Boolean> = mutableMapOf()
-    var minSideMdcConfig: MinSideMdcConfig? = null
-        set(value) {
-            when (value) {
-                null -> field = null
-                else -> {
-                    value.forSubscrpion(requiredFields, optionalFields, eventNames)
-                    field = value
-                }
-            }
+
+    private var mdcContextProvider: (JsonMessage) -> Map<String, String> = { jsonMessage ->
+        mapOf("event" to jsonMessage.eventName)
+    }
+
+    internal fun useMinSideMdcConfig(config: MinSideMdcConfig) {
+        config.validateSubscription(requiredFields, eventNames)
+
+        mdcContextProvider = { jsonMessage ->
+            config.mdcMapFromMessage(jsonMessage)
         }
+    }
 
     companion object {
         fun forEvent(name: String) = Subscription(listOf(name))
@@ -127,6 +131,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
         }
 
         knownFields.add(field)
+        requiredFields.add(field)
         requiredValues += field to listOf(value)
     }
 
@@ -138,6 +143,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
         }
 
         knownFields.add(field)
+        requiredFields.add(field)
         requiredValues += field to values.asList()
     }
 
@@ -226,9 +232,7 @@ class Subscription private constructor(private val eventNames: List<String>) {
         }
 
         return try {
-            withLoggingContext(
-                minSideMdcConfig?.initMinSideMdc(jsonMessage) ?: mapOf("event" to jsonMessage.eventName)
-            ) {
+            withLoggingContext(mdcContextProvider(jsonMessage)) {
                 onAccept(jsonMessage)
             }
             SubscriberResult.accepted()
