@@ -89,6 +89,7 @@ class KafkaApplicationBuilder internal constructor() {
      *   @param idFieldName  name of the  field in JsonMessage som that contains the uniqe identifier for the message. This field must be of type String and not be blank.
      *   @param producedByFieldName name of the field in JsonMessage that contains the name of the producer of the message. This field must be of type String and not be blank.
      *   @param domain domain of the message. Predefined domains are "utkast", "varsel" and "microfrontend". Custom domains can be created with [Domain.custom(name)] but must not contain the predefined domain names.Must be 4-15 characters and can only contain lowercase letters and hyphens.
+     *   @param allowMissingProducerField set to true to allow messages without a producer field. Default is false.
      */
     fun minSideMdc(configBuilder: MinSideMdcConfigBuilder.() -> Unit) {
         if (this.mdcConfigured) {

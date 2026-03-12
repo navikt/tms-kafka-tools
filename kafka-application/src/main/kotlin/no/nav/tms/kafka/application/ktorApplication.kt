@@ -51,8 +51,6 @@ internal fun setupKtorApplication(
         install(MessageChannel) {
             broadcaster = recordBroadcaster
         }
-        // Add route-level MDC context for all API calls
-        install(ApiMdc)
 
         // Apply user-defined module
         customizeableModule()
@@ -142,16 +140,5 @@ private fun Application.metaEndpoints(
                 writer.write(this, PrometheusRegistry.defaultRegistry.scrape(filter))
             }
         }
-    }
-}
-
-val ApiMdc = createApplicationPlugin(name = "ApiMdc") {
-    onCall { call ->
-        MDC.put("route", call.request.uri)
-        MDC.put("method", call.request.httpMethod.value)
-    }
-    on(ResponseSent) {
-        MDC.remove("route")
-        MDC.remove("method")
     }
 }
