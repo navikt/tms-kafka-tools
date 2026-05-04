@@ -12,12 +12,11 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.util.*
 import no.nav.tms.kafka.application.MessageChannel
-import no.nav.tms.token.support.azure.validation.AzureAuthenticator
 
 
 class ReplayApiConfig {
     var requireAuthentication = true
-    var authenticatorName = AzureAuthenticator.name
+    var authenticatorName: String? = null
     var enableKafkaSsl = true
     var environment: Map<String, String> = System.getenv()
 }

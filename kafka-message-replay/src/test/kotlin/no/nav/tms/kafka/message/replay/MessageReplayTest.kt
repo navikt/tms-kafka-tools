@@ -17,7 +17,7 @@ import no.nav.tms.kafka.application.JsonMessage
 import no.nav.tms.kafka.application.KafkaApplication
 import no.nav.tms.kafka.application.Subscriber
 import no.nav.tms.kafka.application.Subscription
-import no.nav.tms.token.support.azure.validation.mock.azureMock
+import no.nav.tms.token.support.entraid.token.verification.mock.entraIdMock
 import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerRecord
 import org.awaitility.Awaitility.await
@@ -25,7 +25,6 @@ import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.testcontainers.kafka.ConfluentKafkaContainer
-import org.testcontainers.kafka.KafkaContainer
 import org.testcontainers.utility.DockerImageName
 import java.net.ServerSocket
 import java.util.UUID
@@ -77,9 +76,10 @@ class MessageReplayTest {
 
         val ktorApi: Application.() -> Unit = {
             install(Authentication) {
-                azureMock {
-                    alwaysAuthenticated = true
-                    setAsDefault = true
+                entraIdMock {
+                    enableDefaultAuthentication {
+
+                    }
                 }
             }
 
