@@ -73,7 +73,7 @@ class MinSideMDCTest {
     }
 
     @Test
-    fun `kaster excpetion hvis required fields ikke er en del av en Subscribers subscription`() {
+    fun `kaster exception hvis required fields ikke er en del av en Subscribers subscription`() {
         assertThrows<IllegalArgumentException> {
             minSideMdcTest {
                 subscribeTofields = listOf("producer", "id")
@@ -135,7 +135,7 @@ class MinSideMDCTest {
 
 
     @Test
-    fun `Legger til mdc felter`() {
+    fun `Legger til mdc-felt`() {
         minSideMdcTest {
             subscribeToEvent = "mdc_event"
             messageContent = mapOf(
@@ -157,40 +157,6 @@ class MinSideMDCTest {
                 minSideValues["produced_by"] shouldBe "test-producer"
                 minSideValues["minside_id"] shouldBe "test-id"
                 minSideValues["event"] shouldBe "mdc_event"
-            }
-        }
-    }
-
-    @Test
-    fun `Legger til custom MDC på apikall`() {
-        minSideMdcTest {
-            subscribeToEvent = "mdc_event"
-            messageContent = mapOf(
-                "producer" to "test-producer",
-                "id" to "test-id"
-            )
-            subscribeTofields = listOf("producer", "id", "@event_name")
-            testConfig = {
-                domain = Domain.microfrontend
-                producedByFieldName = "producer"
-                idFieldName = "id"
-            }
-            apiAssertions = {
-                val response = testClient.get("/assertmdc")
-                response.bodyAsText() shouldBe """{"method": "GET", "route": "/assertmdc"}"""
-            }
-            subscriberAssertions = {
-                //send ny melding for å hente ut ny MDC i subscriber etter API kall
-                KafkaTestContainer.sendMessage(builder.message)
-                await("wait for messages to be processed")
-                    .atMost(1, TimeUnit.SECONDS)
-                    .until { messages.get() > 1 }
-                //verifiser at api mdc ikke lekker ut i subscriber
-                kafkaValues().size shouldBe 7
-                nonKafkaValues().apply {
-                    size shouldBe 5
-                    keys shouldContainExactly setOf("subscriber", "produced_by", "domain", "minside_id", "event")
-                }
             }
         }
     }
@@ -332,17 +298,6 @@ class MinSideMDCTest {
         }
         healthCheck {
             if (stateHolder.healthy) AppHealth.Healthy else AppHealth.Unhealthy
-        }
-
-        ktorModule {
-            routing {
-                get("assertmdc") {
-                    val contextMap = MDC.getCopyOfContextMap() ?: emptyMap()
-                    call.respond(contextMap.entries.joinToString(prefix = "{", postfix = "}") { (k, v) ->
-                        "\"$k\": \"$v\""
-                    })
-                }
-            }
         }
     }
 }

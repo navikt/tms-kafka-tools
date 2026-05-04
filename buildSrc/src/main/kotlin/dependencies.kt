@@ -48,7 +48,7 @@ object Kafka: DependencyGroup {
 
 object KafkaTestContainers: DependencyGroup {
     override val groupId get() = "org.testcontainers"
-    override val version get() = "2.0.1"
+    override val version get() = "2.0.4"
 
     val kafka get() = dependency("testcontainers-kafka")
 }
