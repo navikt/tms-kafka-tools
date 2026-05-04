@@ -178,7 +178,6 @@ class MinSideMDCTest {
             apiAssertions = {
                 val response = testClient.get("/assertmdc")
                 response.bodyAsText() shouldBe """{"method": "GET", "route": "/assertmdc"}"""
-
             }
             subscriberAssertions = {
                 //send ny melding for å hente ut ny MDC i subscriber etter API kall

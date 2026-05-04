@@ -212,3 +212,61 @@ Dersom er lavere en tidligste offset, leses 10 eventer derfa. Hvis offsettet er 
 
 
 Som default er dette endepunktet beskyttet med azure-validering.
+
+### Logging
+
+Biblioteket setter automatisk opp flere MDC-felt (Mapped Diagnostic Context) som legges til alle loggmeldinger. Disse feltene gjør det enklere å spore og filtrere loggmeldinger.
+
+#### Kafka-relaterte MDC-felt
+
+Følgende MDC-felt legges automatisk til når meldinger leses fra Kafka:
+
+- `kafka_record_produced_time` - Tidspunkt når meldingen ble produsert til Kafka (ISO-8601 format)
+- `kafka_record_produced_time_type` - Type tidsstempel (f.eks. CreateTime, LogAppendTime)
+- `kafka_record_topic` - Navnet på Kafka-topicet meldingen kom fra
+- `kafka_record_partition` - Partisjonsnummer meldingen ble lest fra
+- `kafka_record_offset` - Offset for meldingen i partisjonen
+- `kafka_poll_time` - Tidspunkt når batch av meldinger ble hentet fra Kafka
+- `kafka_poll_records_count` - Antall meldinger i batch som ble hentet
+
+#### Subscriber-relaterte MDC-felt
+
+Når meldinger behandles av Subscribers legges følgende felt til:
+
+- `subscriber` - Navnet på Subscriber-klassen som behandler meldingen
+- `event` - Navnet på eventet som behandles (som default hentet fra `@event_name`-feltet)
+
+#### MinSide MDC-konfigurasjon
+
+Dersom MinSide MDC er konfigurert via `minSideMdc`-funksjonen, legges følgende tilleggsfelt til:
+
+- `domain` - Domenet for meldingen (f.eks. "utkast", "varsel", "microfrontend")
+- `minside_id` - Den unike identifikatoren for meldingen (feltnavnet konfigureres via `idFieldName`)
+- `produced_by` - Navnet på produsenten av meldingen (feltnavnet konfigureres via `producedByFieldName`)
+
+Eksempel på konfigurasjon av MinSide MDC:
+
+```kotlin
+KafkaApplication.build {
+    kafkaConfig {
+        groupId = "my-app"
+        readTopic("my-topic")
+    }
+    
+    minSideMdc {
+        domain = Domain.varsel
+        idFieldName = "varselId"
+        producedByFieldName = "producer"
+    }
+}
+```
+
+#### API-relaterte MDC-felt
+
+For HTTP-kall til Ktor-endepunkter legges følgende felt til:
+
+- `route` - URI for forespørselen
+- `method` - HTTP-metode (GET, POST, etc.)
+
+Disse MDC-feltene fjernes automatisk når HTTP-responsen er sendt, slik at de ikke lekker over til Kafka-behandling.
+
