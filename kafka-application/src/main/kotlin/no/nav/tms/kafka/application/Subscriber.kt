@@ -100,8 +100,6 @@ class Subscription private constructor(private val eventNames: List<String>) {
     }
 
     internal fun useMinSideMdcConfig(config: MinSideMdcConfig) {
-        config.validateSubscription(requiredFields, eventNames)
-
         mdcContextProvider = { jsonMessage ->
             config.mdcMapFromMessage(jsonMessage)
         }

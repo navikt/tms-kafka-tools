@@ -162,7 +162,7 @@ class KafkaApplicationBuilder internal constructor() {
         healthChecks.add(readerHealthCheck)
 
         mdcConfig?.let {
-            log.info { "Setter opp MinSideMDC med fieldmappings ${it.describe()}" }
+            log.info { "Setter opp MinSideMDC ${it.description}" }
             subscribers.forEach { subscriber ->
                 subscriber.configureMinSideMdc(it)
             }
@@ -238,30 +238,67 @@ class MinSideMdcConfigBuilder internal constructor(
     var enabled: Boolean = true,
     var domain: Domain? = null,
     var idFieldName: String? = null,
+    private var _idSupplier: ((JsonMessage) -> String)? = null,
     var producedByFieldName: String? = null,
-    var allowMissingProducerField: Boolean = false
+    private var _producedBySupplier: ((JsonMessage) -> String?)? = null
 ) {
+    fun idSupplier(supplier: (JsonMessage) -> String) {
+        _idSupplier = supplier
+    }
+
+    fun producedBySupplier(supplier: (JsonMessage) -> String?) {
+        _producedBySupplier = supplier
+    }
+
     internal fun validate() {
         if (!enabled) {
             return
         }
 
-        val invalidIdField = idFieldName.isNullOrBlank()
-        val invalidProducedByField = producedByFieldName.isNullOrBlank()
-        val invalidDomainField = domain == null
+        val invalidIdField = (idFieldName.isNullOrBlank() && _idSupplier == null)
+            || (!idFieldName.isNullOrBlank() && _idSupplier != null)
 
-        if (invalidIdField || invalidProducedByField || invalidDomainField) {
+        if (invalidIdField) {
+            throw MinSideMdcConfigException("Kan ikke velge både enkel og egendefinert måte å hente id fra JsonMessage.")
+        }
+
+        val invalidProducedByField = (producedByFieldName == null && _producedBySupplier == null)
+            || (producedByFieldName != null && _producedBySupplier != null)
+
+        if (invalidProducedByField) {
+            throw MinSideMdcConfigException("Kan ikke velge både enkel og egendefinert måte å hente produsent fra JsonMessage.")
+        }
+
+        if (domain == null) {
             throw MinSideMdcConfigException(
-                "Følgende felt må være satt og ikke blanke: idFieldName, producedByFieldName, domain]"
+                "Må definere domene for applikasjon"
             )
         }
     }
 
+    private fun describe(): String {
+        val domainPart = "domain=${domain!!.name}"
+
+        val idFieldPart = if (idFieldName != null) {
+            "idFieldName=$idFieldName"
+        } else {
+            "id-value supplied by user-defined function"
+        }
+
+        val producedByFieldPart = if (producedByFieldName != null) {
+            "producedByFieldName=$producedByFieldName"
+        } else {
+            "producedBy-value supplied by user-defined function"
+        }
+
+        return "[$domainPart, $idFieldPart, $producedByFieldPart]"
+    }
+
     internal fun build() = MinSideMdcConfig(
-        idFieldName = this.idFieldName!!,
-        producedByFieldName = this.producedByFieldName!!,
-        domain = this.domain!!,
-        allowMissingProducerField = this.allowMissingProducerField
+        idSupplier = _idSupplier ?: { message -> message[idFieldName!!].asText() },
+        producedBySupplier = _producedBySupplier ?: { message -> message[producedByFieldName!!].asText() },
+        domain = domain!!,
+        description = describe()
     )
 }
 

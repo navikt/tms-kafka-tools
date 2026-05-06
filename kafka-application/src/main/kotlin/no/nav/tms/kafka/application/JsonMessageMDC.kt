@@ -2,40 +2,26 @@ package no.nav.tms.kafka.application
 
 internal class MinSideMdcConfig(
     val domain: Domain,
-    val idFieldName: String,
-    val producedByFieldName: String,
-    val allowMissingProducerField: Boolean
+    val idSupplier: (JsonMessage) -> String,
+    val producedBySupplier: (JsonMessage) -> String?,
+    val description: String
 ) {
-    fun describe() = "[idFieldName=$idFieldName, producedByFieldName=$producedByFieldName, domain-> ${domain.name}]"
 
     fun mdcMapFromMessage(
         jsonMessage: JsonMessage,
     ): Map<String, String> {
+
         val mdcMap = mutableMapOf(
-            "minside_id" to jsonMessage[idFieldName].asText(),
+            "minside_id" to idSupplier(jsonMessage),
             "domain" to domain.name,
             "event" to jsonMessage.eventName,
         )
 
-        jsonMessage.getOrNull(producedByFieldName)?.let {
-            mdcMap["produced_by"] = it.asText()
+        producedBySupplier(jsonMessage)?.let { producer ->
+            mdcMap["produced_by"] = producer
         }
 
         return mdcMap
-    }
-
-    fun validateSubscription(subscribedFields: MutableSet<String>, eventNames: List<String>) {
-        if (!subscribedFields.contains(idFieldName)) {
-            throw MinSideMdcConfigException(
-                "Id-felt '$idFieldName' er ikke definert i subscription for eventene $eventNames."
-            )
-        }
-
-        if (!allowMissingProducerField && !subscribedFields.contains(producedByFieldName)) {
-            throw MinSideMdcConfigException(
-                "Producer-felt '$producedByFieldName' er ikke definert i subscription for eventene $eventNames."
-            )
-        }
     }
 }
 

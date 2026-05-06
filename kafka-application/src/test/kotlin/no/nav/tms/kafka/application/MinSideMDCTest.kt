@@ -1,22 +1,17 @@
 package no.nav.tms.kafka.application
 
-import io.kotest.matchers.collections.shouldContainExactly
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.kotest.matchers.shouldBe
-import io.ktor.client.statement.bodyAsText
-import io.ktor.server.response.respond
-import io.ktor.server.routing.get
-import io.ktor.server.routing.routing
 import kotlinx.coroutines.*
 import no.nav.tms.kafka.application.KafkaTestContainer.TEST_TOPIC
 import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import org.slf4j.MDC
+import java.util.*
 import java.util.concurrent.TimeUnit
-import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 
@@ -73,68 +68,6 @@ class MinSideMDCTest {
     }
 
     @Test
-    fun `kaster exception hvis required fields ikke er en del av en Subscribers subscription`() {
-        assertThrows<IllegalArgumentException> {
-            minSideMdcTest {
-                subscribeTofields = listOf("producer", "id")
-                testConfig = {
-                    domain = Domain.microfrontend
-                    producedByFieldName = "produced_by"
-                    idFieldName = "id"
-                }
-            }
-        }
-        assertThrows<IllegalArgumentException> {
-            minSideMdcTest {
-                subscribeTofields = listOf("producer", "@event_name")
-                testConfig = {
-                    domain = Domain.microfrontend
-                    producedByFieldName = "producer"
-                    idFieldName = ""
-                }
-            }
-        }
-        assertThrows<IllegalArgumentException> {
-            minSideMdcTest {
-                subscribeTofields = listOf("id", "@event_name")
-                testConfig = {
-                    domain = Domain.microfrontend
-                    producedByFieldName = "producer"
-                    idFieldName = "id"
-                }
-            }
-        }
-    }
-
-    @Test
-    fun `tillater at producer mangler fra subscription dersom allowMissingProducerField er satt`() {
-        assertDoesNotThrow {
-            minSideMdcTest {
-                subscribeTofields = listOf("id", "@event_name")
-                testConfig = {
-                    domain = Domain.microfrontend
-                    producedByFieldName = "producer"
-                    idFieldName = "id"
-                    allowMissingProducerField = true
-                }
-                messageContent = mapOf(
-                    "id" to "test-id"
-                )
-                subscriberAssertions = {
-                    kafkaValues().size shouldBe 7
-                    val nonKafkaValues = nonKafkaValues()
-                    nonKafkaValues.size shouldBe 4
-                    nonKafkaValues["domain"] shouldBe "microfrontend"
-                    nonKafkaValues["produced_by"] shouldBe null
-                    nonKafkaValues["minside_id"] shouldBe "test-id"
-                    nonKafkaValues["event"] shouldBe "test_event"
-                }
-            }
-        }
-    }
-
-
-    @Test
     fun `Legger til mdc-felt`() {
         minSideMdcTest {
             subscribeToEvent = "mdc_event"
@@ -155,6 +88,84 @@ class MinSideMDCTest {
                 minSideValues["subscriber"] shouldBe "MdcSubscriber"
                 minSideValues["domain"] shouldBe "microfrontend"
                 minSideValues["produced_by"] shouldBe "test-producer"
+                minSideValues["minside_id"] shouldBe "test-id"
+                minSideValues["event"] shouldBe "mdc_event"
+            }
+        }
+    }
+
+    @Test
+    fun `tillater programmatisk henting av id-felt`() {
+        minSideMdcTest {
+            subscribeToEvent = "mdc_event"
+            messageContent = mapOf(
+                "producer" to "test-producer",
+                "id_fallback" to "id-123",
+                "id_field" to "id-456"
+            )
+            subscribeTofields = listOf("producer", "id_fallback", "@event_name")
+            optionalIdFieldName = "id_field"
+            testConfig = {
+                domain = Domain.microfrontend
+                producedByFieldName = "producer"
+                idSupplier { message ->
+                    if (message.json.hasNonNull("id_field")) {
+                        message["id_field"].asText()
+                    } else {
+                        message["id_fallback"].asText()
+                    }
+                }
+            }
+            subscriberAssertions = {
+                kafkaValues().size shouldBe 7
+                val minSideValues = nonKafkaValues()
+                minSideValues.size shouldBe 5
+                minSideValues["subscriber"] shouldBe "MdcSubscriber"
+                minSideValues["domain"] shouldBe "microfrontend"
+                minSideValues["produced_by"] shouldBe "test-producer"
+                minSideValues["minside_id"] shouldBe "id-456"
+                minSideValues["event"] shouldBe "mdc_event"
+            }
+        }
+    }
+
+    @Test
+    fun `tillater programmatisk henting av produsent-felt`() {
+        minSideMdcTest {
+            subscribeToEvent = "mdc_event"
+            messageContent = mapOf(
+                "producer" to mapOf(
+                    "cluster" to "dev",
+                    "namespace" to "team",
+                    "appnavn" to "test-app"
+                ),
+                "id" to "test-id"
+            )
+            subscribeTofields = listOf("producer", "id", "@event_name")
+            testConfig = {
+                domain = Domain.microfrontend
+                idFieldName = "id"
+                producedBySupplier { message ->
+                    if (message.json.get("producer").isObject) {
+                        val producer = message["producer"]
+
+                        val cluster = producer["cluster"].asText()
+                        val namespace = producer["namespace"].asText()
+                        val appnavn = producer["appnavn"].asText()
+
+                        "$cluster:$namespace:$appnavn"
+                    } else {
+                        message["producer"].asText()
+                    }
+                }
+            }
+            subscriberAssertions = {
+                kafkaValues().size shouldBe 7
+                val minSideValues = nonKafkaValues()
+                minSideValues.size shouldBe 5
+                minSideValues["subscriber"] shouldBe "MdcSubscriber"
+                minSideValues["domain"] shouldBe "microfrontend"
+                minSideValues["produced_by"] shouldBe "dev:team:test-app"
                 minSideValues["minside_id"] shouldBe "test-id"
                 minSideValues["event"] shouldBe "mdc_event"
             }
@@ -204,16 +215,15 @@ class MinSideMDCTest {
         var subscribeTofields: List<String> = emptyList()
         var optionalIdFieldName: String? = null
 
+
         private fun buildMessage(): String {
             val mapWithEvent = messageContent.toMutableMap().apply { put("@event_name", subscribeToEvent) }
-            return mapWithEvent.entries.joinToString(prefix = "{", postfix = "}") { (k, v) ->
-                val value = when (v) {
-                    is String -> "\"$v\""
-                    null -> "null"
-                    else -> v.toString()
-                }
-                "\"$k\": $value"
-            }
+
+            return objectMapper.writeValueAsString(mapWithEvent)
+        }
+
+        companion object {
+            private val objectMapper = jacksonObjectMapper()
         }
     }
 
