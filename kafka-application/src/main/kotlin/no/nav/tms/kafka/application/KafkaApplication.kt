@@ -259,14 +259,14 @@ class MinSideMdcConfigBuilder internal constructor(
             || (!idFieldName.isNullOrBlank() && _idSupplier != null)
 
         if (invalidIdField) {
-            throw MinSideMdcConfigException("Kan ikke velge både enkel og egendefinert måte å hente id fra JsonMessage.")
+            throw MinSideMdcConfigException("Må velge presist én av enkel eller egendefinert måte å hente id fra JsonMessage.")
         }
 
         val invalidProducedByField = (producedByFieldName == null && _producedBySupplier == null)
             || (producedByFieldName != null && _producedBySupplier != null)
 
         if (invalidProducedByField) {
-            throw MinSideMdcConfigException("Kan ikke velge både enkel og egendefinert måte å hente produsent fra JsonMessage.")
+            throw MinSideMdcConfigException("Må velge presist én av enkel eller egendefinert måte å hente produsent fra JsonMessage.")
         }
 
         if (domain == null) {
