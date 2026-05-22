@@ -37,7 +37,7 @@ class RecordBroadcaster internal constructor(
             teamLog.warn(e) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because it does not contain field '@event_name' or its alternative" }
         }  catch (nullpointer: NullPointerException){
             Metrics.onInvalidEventCounter.labelValues(record.topic(), "nullpointer").inc()
-            log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null'" }
+            log.warn { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null" }
             teamLog.warn(nullpointer) { "ignoring record with offset [${record.offset()}] in partition [${record.partition()}] because a value is null'" }
         }
     }

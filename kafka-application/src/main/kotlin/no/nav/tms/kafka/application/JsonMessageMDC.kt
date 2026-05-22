@@ -41,7 +41,7 @@ class Domain private constructor(val name: String) {
          * Oppretter en custom Contenttype.NB! Kun for innhold som ikke er utkast, varsel eller microfrontend.
          * @param name  "verdi i`contenttype`feltet i loggene.Må være 1-15 tegn og kan kun inneholde småbokstaver og -"
          */
-        fun custom(name: String) {
+        fun custom(name: String): Domain {
             require(
                 name.lowercase().contains("utkast").not() &&
                         name.lowercase().contains("varsel").not() &&
@@ -50,7 +50,7 @@ class Domain private constructor(val name: String) {
             ) {
                 "Bruk predefinerte Contenttype for utkast, varsel eller microfrontend"
             }
-            Domain(name)
+            return Domain(name)
         }
     }
 }
