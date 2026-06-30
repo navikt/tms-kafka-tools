@@ -10,8 +10,6 @@ import org.apache.kafka.clients.consumer.ConsumerRecord
 import kotlin.time.DurationUnit
 import kotlin.time.measureTimedValue
 
-open class MessageException(message: String): IllegalArgumentException(message)
-
 class RecordBroadcaster internal constructor(
     private val subscribers: List<Subscriber>,
     eventNameFields: List<String>

@@ -14,8 +14,8 @@ import org.apache.kafka.clients.producer.ProducerRecord
 import org.apache.kafka.clients.producer.RecordMetadata
 import org.apache.kafka.common.TopicPartition
 import org.awaitility.Awaitility
+import org.awaitility.Awaitility.await
 import org.junit.jupiter.api.*
-import org.testcontainers.shaded.org.awaitility.Awaitility.await
 import java.time.Duration
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -99,7 +99,7 @@ class KafkaReaderTest {
     }
 
     @Test
-    fun `in case of unexpected exception, the offset committed is the erroneous record`() {
+    fun `in case of unexpected exception, stop further processing and commit failing message to kafka`() {
         val offsets = (0..100).map {
             producer.send(
                 ProducerRecord(
@@ -147,6 +147,71 @@ class KafkaReaderTest {
         expectedOffset shouldBe actualOffset.offset()
     }
 
+
+    @Test
+    fun `in case of retriable exception, commit failing message to kafka and pause further processing until next poll`() {
+        val numMessages = 100
+        val failOnMessage = 50
+
+        val offsets = (0 until numMessages).map {
+            producer.send(
+                ProducerRecord(
+                    TEST_TOPIC,
+                    UUID.randomUUID().toString(),
+                    """{"@event_name": "offset-test", "index": $it}"""
+                )
+            )
+                .get()
+                .offset()
+        }
+
+        val expectedOffset = offsets.last()
+        var readFailedMessage = false
+
+        val retryingSubscriber = object : Subscriber() {
+            var totalAttempts = 0
+            var messagesProcessed = 0
+
+            override fun subscribe() = Subscription.forEvent("offset-test")
+                .withFields("index")
+
+            override suspend fun receive(jsonMessage: JsonMessage) {
+                totalAttempts += 1
+                if (jsonMessage["index"].asInt() == failOnMessage) {
+                    if (!readFailedMessage) {
+                        readFailedMessage = true
+                        throw RetriableMessageException("an unexpected error happened")
+                    } else {
+                        messagesProcessed += 1
+                    }
+                } else {
+                    messagesProcessed += 1
+                }
+            }
+        }
+
+        runTestReader(waitUpToSeconds = 0, subscribers = listOf(retryingSubscriber))
+
+        await("wait until the failed message has been read")
+            .atMost(50, TimeUnit.SECONDS)
+            .until { readFailedMessage }
+
+        await("wait until all messages are processed")
+            .atMost(20, TimeUnit.SECONDS)
+            .until { retryingSubscriber.messagesProcessed == numMessages }
+
+        val actualOffset = adminClient
+            .listConsumerGroupOffsets(groupId)
+            ?.partitionsToOffsetAndMetadata()
+            ?.get()
+            ?.getValue(TopicPartition(TEST_TOPIC, 0))
+            ?: fail { "was not able to fetch committed offset for consumer $groupId" }
+
+        actualOffset.offset() shouldBe expectedOffset + 1 // Expected offset for consumer is one past final message produced
+
+        retryingSubscriber.totalAttempts shouldBe numMessages + 1 // Failing message is attempted twice
+    }
+
     @Test
     fun `in case of MessageException, processing continues `() {
         val offsets = (0..100).map {
@@ -175,7 +240,7 @@ class KafkaReaderTest {
 
                 if (index == failOnMessage) {
                     readFailedMessage = true
-                    throw MessageException("a known exception occurred")
+                    throw SkippableMessageException("a known exception occurred")
                 } else if (index == 100) {
                     readFinalMessage = true
                 }

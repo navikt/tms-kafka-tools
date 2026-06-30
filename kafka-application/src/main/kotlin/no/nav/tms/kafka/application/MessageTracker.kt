@@ -25,13 +25,16 @@ class MessageTracker internal constructor() {
             ?.outcome
     }
 
-    fun <T : Subscriber> findFailedOutcome(subscriber: KClass<T>, predicate: (JsonMessage) -> Boolean): MessageFailed? {
+
+    fun <T : Subscriber> findSkippedOutcome(subscriber: KClass<T>, predicate: (JsonMessage) -> Boolean): MessageSkipped? {
         return subscriberHistory[subscriber.simpleName]
             ?.filter { predicate(it.message) }
             ?.map { it.outcome }
-            ?.first { it is MessageFailed }
-            ?.let { it as MessageFailed }
+            ?.first { it is MessageSkipped }
+            ?.let { it as MessageSkipped }
     }
+    @Deprecated("Message outcome is now explicitly Skipped rather than simply Failed", replaceWith = ReplaceWith("findSkippedOutcome"))
+    fun <T : Subscriber> findFailedOutcome(subscriber: KClass<T>, predicate: (JsonMessage) -> Boolean) = findSkippedOutcome(subscriber, predicate)
 
     fun <T : Subscriber> allOutcomes(subscriber: KClass<T>): List<Pair<JsonMessage, MessageOutcome>> {
         return subscriberHistory[subscriber.simpleName]
@@ -39,12 +42,14 @@ class MessageTracker internal constructor() {
             ?: emptyList()
     }
 
-    fun <T : Subscriber> allFailedOutcomes(subscriber: KClass<T>): List<Pair<JsonMessage, MessageFailed>> {
+    fun <T : Subscriber> allSkippedOutcomes(subscriber: KClass<T>): List<Pair<JsonMessage, MessageSkipped>> {
         return subscriberHistory[subscriber.simpleName]
-            ?.filter { it.outcome is MessageFailed }
-            ?.map { it.message to it.outcome as MessageFailed }
+            ?.filter { it.outcome is MessageSkipped }
+            ?.map { it.message to it.outcome as MessageSkipped }
             ?: emptyList()
     }
+    @Deprecated("Message outcome is now explicitly Skipped rather than simply Failed", replaceWith = ReplaceWith("allSkippedOutcomes"))
+    fun <T : Subscriber> allFailedOutcomes(subscriber: KClass<T>) = allSkippedOutcomes(subscriber)
 
     fun collectAggregates(): List<AggregateOutcomes> {
         return subscriberHistory.toList().map { (subscriber, history) ->
@@ -67,7 +72,8 @@ class MessageTracker internal constructor() {
             subscriber = subscriber,
             accepted = count[MessageStatus.Accepted]?: 0,
             ignored = count[MessageStatus.Ignored]?: 0,
-            failed = count[MessageStatus.Failed]?: 0,
+            skipped = count[MessageStatus.Skipped]?: 0,
+            failed = count[MessageStatus.Skipped]?: 0,
         )
     }
 }
@@ -76,7 +82,8 @@ class AggregateOutcomes(
     val subscriber: String,
     val accepted: Int,
     val ignored: Int,
-    val failed: Int
+    val skipped: Int,
+    @Deprecated("Replace with skipped") val failed: Int
 )
 
 private data class TrackerEntry(

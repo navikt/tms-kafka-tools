@@ -5,7 +5,12 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.github.oshai.kotlinlogging.withLoggingContext
 import no.nav.tms.common.logging.TeamLogs
 import no.nav.tms.kafka.application.MessageStatus.*
+import kotlin.Deprecated
 
+open class SkippableMessageException(message: String): IllegalArgumentException(message)
+
+@Deprecated("Imprecise name will be removed in future version", replaceWith = ReplaceWith("SkippableMessageException"))
+typealias MessageException = SkippableMessageException
 
 abstract class MessageOutcome {
     internal abstract val status: MessageStatus
@@ -19,9 +24,12 @@ object MessageIgnored : MessageOutcome() {
     override val status: MessageStatus = Ignored
 }
 
-class MessageFailed(val cause: MessageException) : MessageOutcome() {
-    override val status: MessageStatus = Failed
+class MessageSkipped(val cause: SkippableMessageException) : MessageOutcome() {
+    override val status: MessageStatus = Skipped
 }
+
+@Deprecated("Message outcome is now explicitly Skipped rather than simply Failed", replaceWith = ReplaceWith("MessageSkipped"))
+typealias MessageFailed = MessageSkipped
 
 abstract class Subscriber {
     constructor()
@@ -43,10 +51,10 @@ abstract class Subscriber {
         }
 
         return when (result.status) {
-            Failed -> {
+            Skipped -> {
                 log.warn { "Subscriber [${name()}] received failing message with name [${message.eventName}]." }
                 teamLog.warn { "Subscriber [${name()}] received failing message [${message.json}] due to [${result.reason}]." }
-                MessageFailed(result.cause!!)
+                MessageSkipped(result.cause!!)
             }
 
             Ignored -> {
@@ -70,17 +78,17 @@ abstract class Subscriber {
 internal data class SubscriberResult(
     val status: MessageStatus,
     val reason: String?,
-    val cause: MessageException?
+    val cause: SkippableMessageException?
 ) {
     companion object {
-        fun failed(e: MessageException) = SubscriberResult(Failed, e.message, e)
+        fun skipped(e: SkippableMessageException) = SubscriberResult(Skipped, e.message, e)
         fun ignored(reason: IgnoreReason) = SubscriberResult(Ignored, reason.explainReason(), null)
         fun accepted() = SubscriberResult(Accepted, null, null)
     }
 }
 
 internal enum class MessageStatus {
-    Accepted, Ignored, Failed;
+    Accepted, Ignored, Skipped;
 
     override fun toString() = name.lowercase()
 }
@@ -234,8 +242,8 @@ class Subscription private constructor(private val eventNames: List<String>) {
                 onAccept(jsonMessage)
             }
             SubscriberResult.accepted()
-        } catch (e: MessageException) {
-            SubscriberResult.failed(e)
+        } catch (e: SkippableMessageException) {
+            SubscriberResult.skipped(e)
         }
     }
 
