@@ -12,6 +12,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 
+open class RetriableMessageException(msg: String, cause: Exception? = null): RuntimeException(msg, cause)
+
 internal class KafkaReader(
     factory: ConsumerFactory,
     groupId: String,
@@ -81,6 +83,10 @@ internal class KafkaReader(
                 onRecord(record)
                 currentPositions[record.topicPartition()] = record.offset() + 1
             }
+        } catch (rme: RetriableMessageException) {
+            log.info { "Encountered a retriable exception during processing. Committing current offsets in preparation for next poll." }
+            teamLog.info(rme) { "Encountered a retriable exception during processing. Committing current offsets in preparation for next poll." }
+            currentPositions.forEach { (partition, offset) -> consumer.seek(partition, offset) }
         } catch (err: Exception) {
 
             log.info { "committing local offsets prematurely due to an error during processing" }

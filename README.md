@@ -160,8 +160,12 @@ class SomeSubscriber : Subscriber() {
 Feil som oppstår under lesing fra kafka behandles ulikt basert på årsak:
 
  - Hvis det ligger inhhold på feil format (E.G. feilaktig json eller binærdata) på kafka-topicet vil appen hoppe over disse eventene. 
- - Hvis en Subscriber kaster et MessageException vil dette logges og appen lese videre.
+ - Hvis en Subscriber kaster en SkippedMessageException vil dette logges, og appen vil lese videre fra neste melding.
+ - Hvis en Subscriber kaster en RetriableMessageException vil dette logges og appen vil forsøke å behandle meldingen på nytt ved neste polling.
  - Hvis det kastes en uventet exception vil appen stoppe videre lesing fra kafka. 
+
+Merk at RetriableMessageException og ukjente Exceptions vil avbryte behandling av samme melding fra andre subscribere. Vær forsiktig når
+flere subscribere behandler samme melding.
 
 ### Message channel
 

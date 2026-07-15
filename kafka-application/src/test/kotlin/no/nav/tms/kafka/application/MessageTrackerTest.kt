@@ -36,8 +36,8 @@ class MessageTrackerTest {
         }
     }
 
-    class ApplePriceException : MessageException("Price of apple too high or negative")
-    class AppleColorException : MessageException("Apple is of suspicious color")
+    class ApplePriceException : SkippableMessageException("Price of apple too high or negative")
+    class AppleColorException : SkippableMessageException("Apple is of suspicious color")
 
     private val broadcaster = MessageBroadcaster(AppleCollector, enableTracking = true)
 
@@ -63,7 +63,7 @@ class MessageTrackerTest {
 
         broadcaster.history().collectAggregate(AppleCollector::class).let {
             it.shouldNotBeNull()
-            it.failed shouldBe 1
+            it.skipped shouldBe 1
             it.ignored shouldBe 2
             it.accepted shouldBe 1
         }
@@ -94,7 +94,7 @@ class MessageTrackerTest {
     }
 
     @Test
-    fun `allows for detailed tracking of failed outcomes`() {
+    fun `allows for detailed tracking of skipped outcomes`() {
 
         """{ "@event_name": "order", "item": "apple", "price": 8.0, "color": "red", "referenceId": "id-1" }"""
             .let { ok -> broadcaster.broadcastJson(ok) }
@@ -108,6 +108,7 @@ class MessageTrackerTest {
         broadcaster.history().findOutcome(AppleCollector::class) {
             it["referenceId"].asText() == "id-1"
         }.let {
+            it.shouldBeInstanceOf<MessageAccepted>()
             it.shouldNotBeNull()
             it.status shouldBe MessageStatus.Accepted
         }
@@ -115,8 +116,8 @@ class MessageTrackerTest {
         broadcaster.history().findOutcome(AppleCollector::class) {
             it["referenceId"].asText() == "id-2"
         }.let {
-            it.shouldBeInstanceOf<MessageFailed>()
-            it.status shouldBe MessageStatus.Failed
+            it.shouldBeInstanceOf<MessageSkipped>()
+            it.status shouldBe MessageStatus.Skipped
 
             it.cause.shouldBeInstanceOf<ApplePriceException>()
         }
@@ -124,14 +125,15 @@ class MessageTrackerTest {
         broadcaster.history().findOutcome(AppleCollector::class) {
             it["referenceId"].asText() == "id-3"
         }.let {
-            it.shouldBeInstanceOf<MessageFailed>()
-            it.status shouldBe MessageStatus.Failed
+            it.shouldBeInstanceOf<MessageSkipped>()
+            it.status shouldBe MessageStatus.Skipped
 
             it.cause.shouldBeInstanceOf<AppleColorException>()
         }
     }
+
     @Test
-    fun `allows for finding only failed outcomes`() {
+    fun `allows for finding only skipped outcomes`() {
 
         """{ "@event_name": "order", "item": "apple", "price": 8.0, "color": "red", "referenceId": "id-1" }"""
             .let { ok -> broadcaster.broadcastJson(ok) }
@@ -139,12 +141,43 @@ class MessageTrackerTest {
         """{ "@event_name": "order", "item": "apple", "price": 25.0, "color": "red", "referenceId": "id-2" }"""
             .let { pricy -> broadcaster.broadcastJson(pricy) }
 
-        broadcaster.history().findFailedOutcome(AppleCollector::class) {
+        broadcaster.history().findSkippedOutcome(AppleCollector::class) {
             it["color"].asText() == "red"
         }.let {
             it.shouldNotBeNull()
-            it.status shouldBe MessageStatus.Failed
+            it.status shouldBe MessageStatus.Skipped
             it.cause.shouldBeInstanceOf<ApplePriceException>()
         }
+    }
+
+    @Test
+    fun `deprecated field 'failed' should equal 'skipped'`() {
+        """{ "@event_name": "order", "item": "apple", "price": 25.0, "color": "red", "referenceId": "id-2" }"""
+            .let { pricy -> broadcaster.broadcastJson(pricy) }
+
+        """{ "@event_name": "order", "item": "apple", "price": 25.0, "color": "indigo", "referenceId": "id-2" }"""
+            .let { indigo -> broadcaster.broadcastJson(indigo) }
+
+        """{ "@event_name": "order", "item": "apple", "price": 8.0, "color": "purple", "referenceId": "id-3" }"""
+            .let { purple -> broadcaster.broadcastJson(purple) }
+
+        val history = broadcaster.history()
+        val appleColl = AppleCollector::class
+
+        history.collectAggregate(appleColl).let {
+            it.shouldNotBeNull()
+            it.failed shouldBe it.skipped
+        }
+
+        history.allFailedOutcomes(appleColl) shouldBe history.allSkippedOutcomes(appleColl)
+
+        history.findFailedOutcome(appleColl) { it["color"].asText() == "indigo" } shouldBe
+            history.findSkippedOutcome(appleColl) { it["color"].asText() == "indigo" }
+
+        history.findFailedOutcome(appleColl) { it["color"].asText() == "red" } shouldBe
+            history.findSkippedOutcome(appleColl) { it["color"].asText() == "red" }
+
+        history.findFailedOutcome(appleColl) { it["price"].asDouble() == 25.0 } shouldBe
+            history.findSkippedOutcome(appleColl) { it["price"].asDouble() == 25.0 }
     }
 }
