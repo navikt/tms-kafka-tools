@@ -5,6 +5,7 @@ import org.apache.kafka.clients.producer.KafkaProducer
 import org.apache.kafka.clients.producer.ProducerConfig
 import org.apache.kafka.common.config.SaslConfigs
 import org.apache.kafka.common.config.SslConfigs
+import org.apache.kafka.common.serialization.LongSerializer
 import org.apache.kafka.common.serialization.Serializer
 import org.apache.kafka.common.serialization.StringSerializer
 import java.lang.IllegalStateException
@@ -85,19 +86,8 @@ object KafkaProducerBuilder {
         }
     }
 
-    fun setEnvOverride(override: Map<String, String>) {
-        envOverride.clear()
-        envOverride.putAll(override)
-    }
-    fun resetEnvOverride() {
-        envOverride.clear()
-    }
-
-    private val envOverride = mutableMapOf<String, String>()
-
     private fun getEnvVar(name: String): String {
-        return envOverride[name]
-            ?: System.getenv(name)
+        return System.getenv(name)
             ?: throw IllegalStateException("Fant ikke miljøvariabel '$name'. Påse at nais-yaml er satt opp riktig, eller suppler variabel som override.")
     }
 

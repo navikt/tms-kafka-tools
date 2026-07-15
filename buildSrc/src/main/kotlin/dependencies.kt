@@ -10,13 +10,6 @@ interface DependencyGroup {
     }
 }
 
-object Avro: DependencyGroup {
-    override val groupId get() = "io.confluent"
-    override val version get() = "8.3.0"
-
-    val avroSerializer get() = dependency("kafka-avro-serializer")
-}
-
 object Awaitility: DependencyGroup {
     override val groupId get() = "org.awaitility"
     override val version get() = "4.3.0"
