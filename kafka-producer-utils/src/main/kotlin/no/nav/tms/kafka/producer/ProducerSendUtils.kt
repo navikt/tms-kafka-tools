@@ -102,7 +102,7 @@ object ProducerSendUtils {
                 try {
                     val offsetMetadata = result.get(syncTimeoutSeconds, TimeUnit.SECONDS)
                     if (offsetMetadata.hasOffset()) {
-                        Metrics.registerSynchonizedBatchSend()
+                        Metrics.registerBatchedSend()
                         callback()
                     } else {
                         Metrics.registerFailedSend(SynchronizedBatch, Sync)
@@ -211,7 +211,7 @@ internal object Metrics {
 
     fun registerSynchronizedSend() = SYNCHRONIZED_SEND.inc()
     fun registerBatchStarted() = SYNCHRONIZED_BATCHES_STARTED.inc()
-    fun registerSynchonizedBatchSend() = SYNCHRONIZED_BATCH_SEND.inc()
+    fun registerBatchedSend() = SYNCHRONIZED_BATCH_SEND.inc()
     fun registerTransactionStarted() = TRANSACTIONS_STARTED.inc()
     fun registerTransactionalSend(count: Long) = TRANSACTIONAL_SEND.inc(count)
     fun registerFailedSend(type: FailedSendType, stage: FailureStage) =
@@ -219,8 +219,8 @@ internal object Metrics {
 
     private const val SYNCHRONIZED_SEND_NAME = "${NAMESPACE}_synchronized_send"
 
-    private const val SYNCHRONIZED_BATCHES_STARTED_NAME = "${NAMESPACE}_synchronized_batches_started"
-    private const val SYNCHRONIZED_BATCH_SEND_NAME = "${NAMESPACE}_synchronized_batch_send"
+    private const val SYNCHRONIZED_BATCHES_STARTED_NAME = "${NAMESPACE}_batches_started"
+    private const val SYNCHRONIZED_BATCH_SEND_NAME = "${NAMESPACE}_batched_send"
 
     private const val TRANSACTIONS_STARTED_NAME = "${NAMESPACE}_transactions_started"
     private const val TRANSACTIONAL_SEND_NAME = "${NAMESPACE}_transactional_send"
