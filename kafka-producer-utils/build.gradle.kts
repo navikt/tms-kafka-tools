@@ -33,7 +33,6 @@ dependencies {
     testImplementation(KafkaTestContainers.kafka)
     testImplementation(Kotest.assertionsCore)
     testImplementation(Kotlinx.coroutines)
-    testImplementation(Mockk.mockk)
 }
 
 tasks {

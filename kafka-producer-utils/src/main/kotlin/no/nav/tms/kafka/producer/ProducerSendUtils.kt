@@ -3,9 +3,9 @@ package no.nav.tms.kafka.producer
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.prometheus.metrics.core.metrics.Counter
 import no.nav.tms.common.logging.TeamLogs
-import no.nav.tms.kafka.producer.Metrics.FailedSendType.Synchronized
-import no.nav.tms.kafka.producer.Metrics.FailedSendType.SynchronizedBatch
-import no.nav.tms.kafka.producer.Metrics.FailedSendType.Transactional
+import no.nav.tms.kafka.producer.Metrics.SendMode.Synchronized
+import no.nav.tms.kafka.producer.Metrics.SendMode.Batched
+import no.nav.tms.kafka.producer.Metrics.SendMode.Transactional
 import no.nav.tms.kafka.producer.Metrics.FailureStage.Commit
 import no.nav.tms.kafka.producer.Metrics.FailureStage.Flush
 import no.nav.tms.kafka.producer.Metrics.FailureStage.Send
@@ -77,13 +77,13 @@ object ProducerSendUtils {
             try {
                 results += kafkaProducer.send(record) to onSuccess
             } catch (ae: AuthenticationException) {
-                Metrics.registerFailedSend(SynchronizedBatch, Send)
+                Metrics.registerFailedSend(Batched, Send)
                 log.error { "Fikk autentiseringsfeil ved sending av batchet kafka-record" }
                 teamLog.error(ae) { "Fikk autentiseringsfeil ved sending av batchet kafka-record" }
 
                 throw FatalSendException("Feil ved autentisering mot kafka", ae)
             } catch (e: Exception) {
-                Metrics.registerFailedSend(SynchronizedBatch, Send)
+                Metrics.registerFailedSend(Batched, Send)
                 log.error { "Fikk feil ved sending av batchet kafka-record" }
                 teamLog.error(e) { "Fikk feil ved sending av batchet kafka-record" }
             }
@@ -93,7 +93,7 @@ object ProducerSendUtils {
             try {
                 kafkaProducer.flush()
             } catch (e: Exception) {
-                Metrics.registerFailedSend(SynchronizedBatch, Flush)
+                Metrics.registerFailedSend(Batched, Flush)
                 log.error { "Fikk feil ved flushing av batch med kafka-records. Fortsetter prosessering." }
                 teamLog.error(e) { "Fikk feil ved flushing av batch med kafka-records. Fortsetter prosessering." }
             }
@@ -102,14 +102,14 @@ object ProducerSendUtils {
                 try {
                     val offsetMetadata = result.get(syncTimeoutSeconds, TimeUnit.SECONDS)
                     if (offsetMetadata.hasOffset()) {
-                        Metrics.registerSynchonizedBatchSend()
+                        Metrics.registerBatchedSend()
                         callback()
                     } else {
-                        Metrics.registerFailedSend(SynchronizedBatch, Sync)
+                        Metrics.registerFailedSend(Batched, Sync)
                         log.warn { "Batch-record ble ikke godtatt av kafka av ukjent årsak." }
                     }
                 } catch (e: Exception) {
-                    Metrics.registerFailedSend(SynchronizedBatch, Sync)
+                    Metrics.registerFailedSend(Batched, Sync)
                     log.error { "Fikk feil ved synkronisering av batch med records til kafka" }
                     teamLog.error(e) { "Fikk feil ved synkronisering av batch med records til kafka" }
                 }
@@ -201,45 +201,46 @@ object ProducerSendUtils {
 internal object Metrics {
     private const val NAMESPACE = "tms_kafka_producer"
 
-    enum class FailedSendType {
-        Synchronized, SynchronizedBatch, Transactional
+    enum class SendMode {
+        Synchronized, Batched, Transactional
     }
 
     enum class FailureStage {
         Send, Flush, Sync, Commit
     }
 
-    fun registerSynchronizedSend() = SYNCHRONIZED_SEND.inc()
-    fun registerBatchStarted() = SYNCHRONIZED_BATCHES_STARTED.inc()
-    fun registerSynchonizedBatchSend() = SYNCHRONIZED_BATCH_SEND.inc()
-    fun registerTransactionStarted() = TRANSACTIONS_STARTED.inc()
-    fun registerTransactionalSend(count: Long) = TRANSACTIONAL_SEND.inc(count)
-    fun registerFailedSend(type: FailedSendType, stage: FailureStage) =
-        FAILED_SEND.labelValues(type.name.lowercase(), stage.name.lowercase()).inc()
+    fun registerSynchronizedSend() =
+        RECORD_SENT.labelValues(Synchronized.name.lowercase()).inc()
 
-    private const val SYNCHRONIZED_SEND_NAME = "${NAMESPACE}_synchronized_send"
+    fun registerBatchStarted() =
+        BATCHES_STARTED.inc()
+    fun registerBatchedSend() =
+        RECORD_SENT.labelValues(Batched.name.lowercase()).inc()
 
-    private const val SYNCHRONIZED_BATCHES_STARTED_NAME = "${NAMESPACE}_synchronized_batches_started"
-    private const val SYNCHRONIZED_BATCH_SEND_NAME = "${NAMESPACE}_synchronized_batch_send"
+    fun registerTransactionStarted() =
+        TRANSACTIONS_STARTED.inc()
+    fun registerTransactionalSend(count: Long) =
+        RECORD_SENT.labelValues(Transactional.name.lowercase()).inc(count)
 
+    fun registerFailedSend(mode: SendMode, stage: FailureStage) =
+        FAILED_SEND.labelValues(mode.name.lowercase(), stage.name.lowercase()).inc()
+
+    private const val RECORD_SENT_NAME = "${NAMESPACE}_record_sent"
+
+    private const val BATCHES_STARTED_NAME = "${NAMESPACE}_batches_started"
     private const val TRANSACTIONS_STARTED_NAME = "${NAMESPACE}_transactions_started"
-    private const val TRANSACTIONAL_SEND_NAME = "${NAMESPACE}_transactional_send"
 
     private const val FAILED_SEND_NAME = "${NAMESPACE}_failed_send"
 
-    private val SYNCHRONIZED_SEND: Counter = Counter.builder()
-        .name(SYNCHRONIZED_SEND_NAME)
-        .help("Antall kafka-records sendt synkront")
+    private val RECORD_SENT: Counter = Counter.builder()
+        .name(RECORD_SENT_NAME)
+        .help("Antall kafka-records sendt per sendingsmetode")
+        .labelNames("mode")
         .register()
 
-    private val SYNCHRONIZED_BATCHES_STARTED: Counter = Counter.builder()
-        .name(SYNCHRONIZED_BATCHES_STARTED_NAME)
+    private val BATCHES_STARTED: Counter = Counter.builder()
+        .name(BATCHES_STARTED_NAME)
         .help("Antall synkrone batcher påbegynt")
-        .register()
-
-    private val SYNCHRONIZED_BATCH_SEND: Counter = Counter.builder()
-        .name(SYNCHRONIZED_BATCH_SEND_NAME)
-        .help("Antall kafka-records sendt i synkrone batcher")
         .register()
 
     private val TRANSACTIONS_STARTED: Counter = Counter.builder()
@@ -247,15 +248,10 @@ internal object Metrics {
         .help("Antall transaksjoner startet")
         .register()
 
-    private val TRANSACTIONAL_SEND: Counter = Counter.builder()
-        .name(TRANSACTIONAL_SEND_NAME)
-        .help("Antall kafka-records sendt transaksjonelt")
-        .register()
-
     private val FAILED_SEND: Counter = Counter.builder()
         .name(FAILED_SEND_NAME)
         .help("Feil i sending av kafka-records")
-        .labelNames("type", "stage")
+        .labelNames("mode", "stage")
         .register()
 }
 

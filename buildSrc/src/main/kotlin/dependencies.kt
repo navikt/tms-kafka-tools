@@ -120,13 +120,6 @@ object Micrometer: DependencyGroup {
     val registryPrometheus get() = dependency("micrometer-registry-prometheus")
 }
 
-object Mockk: DependencyGroup {
-    override val groupId get() = "io.mockk"
-    override val version get() = "1.14.9"
-
-    val mockk get() = dependency("mockk")
-}
-
 object Prometheus: DependencyGroup {
     override val version get() = "1.5.1"
     override val groupId get() = "io.prometheus"
