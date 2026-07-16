@@ -126,8 +126,6 @@ private fun Application.metaEndpoints(
         val writer = ExpositionFormats.init().openMetricsTextFormatWriter
 
         get(metricsEndpoint) {
-            PrometheusRegistry.defaultRegistry.scrape()
-
             val requestedNames = call.request.queryParameters.getAll("name[]")?.toSet() ?: emptySet()
 
             val filter = if (requestedNames.isNotEmpty()) {
