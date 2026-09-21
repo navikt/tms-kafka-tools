@@ -138,7 +138,7 @@ object TmsKtorTokenSupport: DependencyGroup {
 
 object TmsCommonLib: DependencyGroup {
     override val groupId get() = "no.nav.tms.common"
-    override val version get() = "5.3.3"
+    override val version get() = "5.3.4"
 
     val teamLogger get() = dependency("team-logger")
 }
