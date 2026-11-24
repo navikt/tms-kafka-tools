@@ -32,18 +32,16 @@ updates:
         patterns:
           - "gradle-wrapper"
           - "io.ktor:*"
-          - "org.jetbrains.kotlin:*"
           - "io.github.oshai:*"
+          - "io.micrometer:*"
+          - "io.prometheus:*"
+          - "no.nav.tms.common:*"
+          - "no.nav.tms.token.support:*"
           - "org.jetbrains.kotlinx*"
+          - "org.slf4j:*"
           - "ch.qos.logback:*"
-          - "org.apache.*"
-          - "org.junit.jupiter:*"
+          - "org.apache.kafka:*"
           - "com.fasterxml.jackson*"
-          - "com.github.ben-manes.caffeine:*"
-          - "com.auth0:*"
-          - "com.nimbusds:*"
-          - "io.netty:*"
-          - "tools.jackson.core:*"
         update-types:
           - "minor"
           - "patch"
@@ -51,8 +49,11 @@ updates:
       test-libs:
         patterns:
           - "io.kotest:*"
-          - "io.mockk:*"
+          - "org.awaitility:*"
+          - "org.junit.jupiter:*"
           - "org.junit.platform:*"
+          - "io.kotest:*"
+          - "org.testcontainers:*"
 
       plugins-libs:
         patterns:
