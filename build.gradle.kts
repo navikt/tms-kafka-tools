@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm").version(Kotlin.version)
+    alias(libs.plugins.kotlin)
 }
 
 kotlin {
@@ -17,8 +17,4 @@ tasks {
 repositories {
     mavenCentral()
     mavenLocal()
-}
-
-dependencies {
-    implementation(kotlin("stdlib-jdk8"))
 }

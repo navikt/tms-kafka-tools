@@ -1,7 +1,7 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
-    kotlin("jvm").version(Kotlin.version)
+    alias(libs.plugins.kotlin)
     `java-library`
     `maven-publish`
 }
@@ -23,23 +23,24 @@ kotlin {
 dependencies {
     implementation(project(":kafka-application"))
 
-    implementation(JacksonDatatype.datatypeJsr310)
-    implementation(JacksonDatatype.moduleKotlin)
-    implementation(Kotlinx.coroutines)
-    implementation(KotlinLogging.logging)
-    implementation(Kafka.clients)
-    implementation(Ktor.Server.core)
-    implementation(Ktor.Server.cio)
-    implementation(Ktor.Server.authJwt)
-    implementation(TmsKtorTokenSupport.azureValidation)
-    testImplementation(Awaitility.awaitility)
-    testImplementation(JunitPlatform.launcher)
-    testImplementation(JunitJupiter.api)
-    testImplementation(JunitJupiter.engine)
-    testImplementation(KafkaTestContainers.kafka)
-    testImplementation(Kotest.assertionsCore)
-    testImplementation(Ktor.Test.serverTestHost)
-    testImplementation(TmsKtorTokenSupport.azureValidationMock)
+    implementation(libs.jackson.datatypeJsr310)
+    implementation(libs.jackson.moduleKotlin)
+    implementation(libs.kafka.clients)
+    implementation(libs.kotlinLogging)
+    implementation(libs.kotlinx.coroutines)
+    implementation(libs.ktor.server.authJwt)
+    implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.core)
+    implementation(libs.tms.ktorTokenSupport.entraId.verification)
+
+    testImplementation(libs.awaitility)
+    testImplementation(libs.junit.api)
+    testImplementation(libs.junit.engine)
+    testImplementation(libs.junit.launcher)
+    testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.ktor.test.server)
+    testImplementation(libs.testcontainers.kafka)
+    testImplementation(libs.tms.ktorTokenSupport.entraId.verificationMock)
 }
 
 tasks {
@@ -52,7 +53,9 @@ tasks {
     }
 }
 
-val libraryVersion: String = properties["lib_version"]?.toString() ?: "latest-local"
+val libraryVersion: String = providers.gradleProperty("lib_version")
+    .orElse("latest-local")
+    .get()
 
 publishing {
     repositories{
@@ -73,7 +76,7 @@ publishing {
             version = libraryVersion
             from(components["java"])
 
-            val sourcesJar by tasks.registering(Jar::class) {
+            val sourcesJar = tasks.register<Jar>("sources") {
                 archiveClassifier.set("sources")
                 from(sourceSets.main.get().allSource)
             }

@@ -1,7 +1,7 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
-    kotlin("jvm").version(Kotlin.version)
+    alias(libs.plugins.kotlin)
     `java-library`
     `maven-publish`
 }
@@ -21,27 +21,28 @@ kotlin {
 }
 
 dependencies {
-    implementation(JacksonDatatype.datatypeJsr310)
-    implementation(JacksonDatatype.moduleKotlin)
-    implementation(Micrometer.registryPrometheus)
-    implementation(Kotlinx.coroutines)
-    implementation(KotlinLogging.logging)
-    implementation(Kafka.clients)
-    implementation(Ktor.Server.core)
-    implementation(Ktor.Server.cio)
-    implementation(Ktor.Server.metricsMicrometer)
-    implementation(Logback.classic)
-    implementation(Logstash.logbackEncoder)
-    implementation(Prometheus.metricsCore)
-    implementation(Prometheus.exporterCommon)
-    implementation(TmsCommonLib.teamLogger)
-    testImplementation(Awaitility.awaitility)
-    testImplementation(JunitPlatform.launcher)
-    testImplementation(JunitJupiter.api)
-    testImplementation(JunitJupiter.engine)
-    testImplementation(KafkaTestContainers.kafka)
-    testImplementation(Kotest.assertionsCore)
-    testImplementation(Ktor.Test.serverTestHost)
+    implementation(libs.jackson.datatypeJsr310)
+    implementation(libs.jackson.moduleKotlin)
+    implementation(libs.kafka.clients)
+    implementation(libs.kotlinLogging)
+    implementation(libs.kotlinx.coroutines)
+    implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.metricsMicrometer)
+    implementation(libs.logback.classic)
+    implementation(libs.logstash.logbackEncoder)
+    implementation(libs.micrometer.registryPrometheus)
+    implementation(libs.prometheus.exporterCommon)
+    implementation(libs.prometheus.metricsCore)
+    implementation(libs.tms.commonLib.teamLogger)
+
+    testImplementation(libs.awaitility)
+    testImplementation(libs.junit.api)
+    testImplementation(libs.junit.engine)
+    testImplementation(libs.junit.launcher)
+    testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.ktor.test.server)
+    testImplementation(libs.testcontainers.kafka)
 }
 
 tasks {
@@ -54,7 +55,9 @@ tasks {
     }
 }
 
-val libraryVersion: String = properties["lib_version"]?.toString() ?: "latest-local"
+val libraryVersion: String = providers.gradleProperty("lib_version")
+    .orElse("latest-local")
+    .get()
 
 publishing {
     repositories{
@@ -75,7 +78,7 @@ publishing {
             version = libraryVersion
             from(components["java"])
 
-            val sourcesJar by tasks.registering(Jar::class) {
+            val sourcesJar = tasks.register<Jar>("sources") {
                 archiveClassifier.set("sources")
                 from(sourceSets.main.get().allSource)
             }
