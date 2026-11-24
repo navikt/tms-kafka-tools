@@ -21,18 +21,19 @@ kotlin {
 }
 
 dependencies {
-    implementation(libs.kafka.clients)
+    api(libs.kafka.clients)
     implementation(libs.kotlinLogging)
     implementation(libs.prometheus.metricsCore)
     implementation(libs.tms.commonLib.teamLogger)
 
-    testImplementation(libs.awaitility)
     testImplementation(libs.junit.api)
-    testImplementation(libs.junit.engine)
-    testImplementation(libs.junit.launcher)
     testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.kotest.assertionsShared)
     testImplementation(libs.kotlinx.coroutines)
+    testImplementation(libs.testcontainers.core)
     testImplementation(libs.testcontainers.kafka)
+    testRuntimeOnly(libs.junit.engine)
+    testRuntimeOnly(libs.junit.launcher)
 }
 
 tasks {

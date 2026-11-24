@@ -21,26 +21,31 @@ kotlin {
 }
 
 dependencies {
+    api(libs.ktor.server.core)
+    api(libs.ktor.utils)
     implementation(project(":kafka-application"))
-
-    implementation(libs.jackson.datatypeJsr310)
+    implementation(libs.jackson.core)
+    implementation(libs.jackson.databind)
     implementation(libs.jackson.moduleKotlin)
     implementation(libs.kafka.clients)
     implementation(libs.kotlinLogging)
     implementation(libs.kotlinx.coroutines)
-    implementation(libs.ktor.server.authJwt)
-    implementation(libs.ktor.server.cio)
-    implementation(libs.ktor.server.core)
-    implementation(libs.tms.ktorTokenSupport.entraId.verification)
+    implementation(libs.kotlinx.ioCore)
+    implementation(libs.ktor.http)
+    implementation(libs.ktor.io)
+    implementation(libs.ktor.server.auth)
+    runtimeOnly(libs.jackson.datatypeJsr310)
 
     testImplementation(libs.awaitility)
     testImplementation(libs.junit.api)
-    testImplementation(libs.junit.engine)
-    testImplementation(libs.junit.launcher)
     testImplementation(libs.kotest.assertionsCore)
-    testImplementation(libs.ktor.test.server)
+    testImplementation(libs.ktor.client.core)
+    testImplementation(libs.testcontainers.core)
     testImplementation(libs.testcontainers.kafka)
     testImplementation(libs.tms.ktorTokenSupport.entraId.verificationMock)
+    testRuntimeOnly(libs.junit.engine)
+    testRuntimeOnly(libs.junit.launcher)
+    testRuntimeOnly(libs.ktor.client.cio)
 }
 
 tasks {
