@@ -1,7 +1,7 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
-    kotlin("jvm").version(Kotlin.version)
+    alias(libs.plugins.kotlin)
     `java-library`
     `maven-publish`
 }
@@ -21,25 +21,31 @@ kotlin {
 }
 
 dependencies {
+    api(libs.ktor.server.core)
+    api(libs.ktor.utils)
     implementation(project(":kafka-application"))
+    implementation(libs.jackson.core)
+    implementation(libs.jackson.databind)
+    implementation(libs.jackson.moduleKotlin)
+    implementation(libs.kafka.clients)
+    implementation(libs.kotlinLogging)
+    implementation(libs.kotlinx.coroutines)
+    implementation(libs.kotlinx.ioCore)
+    implementation(libs.ktor.http)
+    implementation(libs.ktor.io)
+    implementation(libs.ktor.server.auth)
+    runtimeOnly(libs.jackson.datatypeJsr310)
 
-    implementation(JacksonDatatype.datatypeJsr310)
-    implementation(JacksonDatatype.moduleKotlin)
-    implementation(Kotlinx.coroutines)
-    implementation(KotlinLogging.logging)
-    implementation(Kafka.clients)
-    implementation(Ktor.Server.core)
-    implementation(Ktor.Server.cio)
-    implementation(Ktor.Server.authJwt)
-    implementation(TmsKtorTokenSupport.azureValidation)
-    testImplementation(Awaitility.awaitility)
-    testImplementation(JunitPlatform.launcher)
-    testImplementation(JunitJupiter.api)
-    testImplementation(JunitJupiter.engine)
-    testImplementation(KafkaTestContainers.kafka)
-    testImplementation(Kotest.assertionsCore)
-    testImplementation(Ktor.Test.serverTestHost)
-    testImplementation(TmsKtorTokenSupport.azureValidationMock)
+    testImplementation(libs.awaitility)
+    testImplementation(libs.junit.api)
+    testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.ktor.client.core)
+    testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.kafka)
+    testImplementation(libs.tms.ktorTokenSupport.entraId.verificationMock)
+    testRuntimeOnly(libs.junit.engine)
+    testRuntimeOnly(libs.junit.launcher)
+    testRuntimeOnly(libs.ktor.client.cio)
 }
 
 tasks {
@@ -52,7 +58,9 @@ tasks {
     }
 }
 
-val libraryVersion: String = properties["lib_version"]?.toString() ?: "latest-local"
+val libraryVersion: String = providers.gradleProperty("lib_version")
+    .orElse("latest-local")
+    .get()
 
 publishing {
     repositories{
@@ -73,7 +81,7 @@ publishing {
             version = libraryVersion
             from(components["java"])
 
-            val sourcesJar by tasks.registering(Jar::class) {
+            val sourcesJar = tasks.register<Jar>("sources") {
                 archiveClassifier.set("sources")
                 from(sourceSets.main.get().allSource)
             }

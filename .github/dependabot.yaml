@@ -1,0 +1,76 @@
+version: 2
+
+registries:
+  nav-maven:
+    type: maven-repository
+    url: https://github-package-registry-mirror.gc.nav.no/cached/maven-release
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    cooldown:
+      default-days: 3
+    labels:
+      - github-actions
+      - tms-backend
+
+  - package-ecosystem: "gradle"
+    directory: "/"
+    registries:
+      - nav-maven
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+    groups:
+      runtime-libs:
+        patterns:
+          - "gradle-wrapper"
+          - "io.ktor:*"
+          - "io.github.oshai:*"
+          - "io.micrometer:*"
+          - "io.prometheus:*"
+          - "no.nav.tms.common:*"
+          - "no.nav.tms.token.support:*"
+          - "org.jetbrains.kotlinx*"
+          - "org.slf4j:*"
+          - "ch.qos.logback:*"
+          - "org.apache.kafka:*"
+          - "com.fasterxml.jackson*"
+        update-types:
+          - "minor"
+          - "patch"
+
+      test-libs:
+        patterns:
+          - "io.kotest:*"
+          - "org.awaitility:*"
+          - "org.junit.jupiter:*"
+          - "org.junit.platform:*"
+          - "io.kotest:*"
+          - "org.testcontainers:*"
+
+      plugins-libs:
+        patterns:
+          - "org.jetbrains.kotlin.jvm*"
+          - "org.jetbrains.kotlin.plugin*"
+        update-types:
+          - "minor"
+          - "patch"
+      gradle-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+
+    labels:
+      - gradle-dependency
+      - tms-backend
+    cooldown:
+      default-days: 7

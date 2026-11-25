@@ -1,7 +1,7 @@
 import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 
 plugins {
-    kotlin("jvm").version(Kotlin.version)
+    alias(libs.plugins.kotlin)
     `java-library`
     `maven-publish`
 }
@@ -21,18 +21,19 @@ kotlin {
 }
 
 dependencies {
-    implementation(KotlinLogging.logging)
-    implementation(Kafka.clients)
-    implementation(Prometheus.metricsCore)
-    implementation(TmsCommonLib.teamLogger)
+    api(libs.kafka.clients)
+    implementation(libs.kotlinLogging)
+    implementation(libs.prometheus.metricsCore)
+    implementation(libs.tms.commonLib.teamLogger)
 
-    testImplementation(Awaitility.awaitility)
-    testImplementation(JunitPlatform.launcher)
-    testImplementation(JunitJupiter.api)
-    testImplementation(JunitJupiter.engine)
-    testImplementation(KafkaTestContainers.kafka)
-    testImplementation(Kotest.assertionsCore)
-    testImplementation(Kotlinx.coroutines)
+    testImplementation(libs.junit.api)
+    testImplementation(libs.kotest.assertionsCore)
+    testImplementation(libs.kotest.assertionsShared)
+    testImplementation(libs.kotlinx.coroutines)
+    testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.kafka)
+    testRuntimeOnly(libs.junit.engine)
+    testRuntimeOnly(libs.junit.launcher)
 }
 
 tasks {
@@ -45,7 +46,9 @@ tasks {
     }
 }
 
-val libraryVersion: String = properties["lib_version"]?.toString() ?: "latest-local"
+val libraryVersion: String = providers.gradleProperty("lib_version")
+    .orElse("latest-local")
+    .get()
 
 publishing {
     repositories{
@@ -66,7 +69,7 @@ publishing {
             version = libraryVersion
             from(components["java"])
 
-            val sourcesJar by tasks.registering(Jar::class) {
+            val sourcesJar = tasks.register<Jar>("sources") {
                 archiveClassifier.set("sources")
                 from(sourceSets.main.get().allSource)
             }
