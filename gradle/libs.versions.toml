@@ -18,8 +18,8 @@ micrometer = "1.18.0"
 prometheus = "1.10.0"
 slf4j = "2.0.19"
 testcontainers = "2.0.5"
-tmsCommonLib = "5.3.7-test"
-tmsKtorTokenSupport = "6.0.4-test-3"
+tmsCommonLib = "5.3.7"
+tmsKtorTokenSupport = "6.0.4"
 
 [libraries]
 awaitility = { group = "org.awaitility", name = "awaitility", version.ref = "awaitility" }
